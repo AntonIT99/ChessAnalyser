@@ -11,6 +11,9 @@ class Position:
             return self.row == other.row and self.column == other.column
         return False
 
+    def __hash__(self):
+        return hash((self.row, self.column))
+
     @classmethod
     def copy(cls, other):
         return cls(row=other.row, column=other.column)
@@ -19,28 +22,59 @@ class Position:
 class Board:
 
     def __init__(self, state):
-        self.state = state
+        self.__state = state
         self.rows = len(state)
         self.columns = len(state[0])
         self.last_row = self.rows - 1
         self.last_column = self.columns - 1
+        self.undo_stack = []
+        self.redo_stack = []
         self.positions = []
         for row in range(self.rows):
             for column in range(self.columns):
                 self.positions.append(Position(row=row, column=column))
 
     def get(self, pos: Position):
-        return self.state[pos.row][pos.column]
+        return self.__state[pos.row][pos.column]
 
     def set(self, pos: Position, value):
-        self.state[pos.row][pos.column] = value
+        # Save the current state to the undo stack before changing it
+        self.undo_stack.append(copy.deepcopy(self.__state))
+        # Update the state
+        self.__state[pos.row][pos.column] = value
+        # Clear the redo stack because we have a new state
+        self.redo_stack.clear()
 
     def do_move(self, origin: Position, destination: Position):
-        if self.get(origin) is not None:
-            self.set(destination, self.get(origin))
-            self.set(origin, None)
+        # if the destination is not the origin and the destination is not occupied or is occupied by a piece of the opposite color
+        if origin != destination and (self.get(origin) is not None or self.get(origin).color != self.get(destination).color):
+            # Save the current state to the undo stack before changing it
+            self.undo_stack.append(copy.deepcopy(self.__state))
+            # Update the state by doing the move
+            self.__state[destination.row][destination.column] = self.get(origin)
+            self.__state[origin.row][origin.column] = None
+            # Clear the redo stack because we have a new state
+            self.redo_stack.clear()
+
+    def undo(self):
+        if not self.undo_stack:
+            # No actions to undo
+            return
+        # Move the current state to the redo stack
+        self.redo_stack.append(copy.deepcopy(self.__state))
+        # Pop the last state from the undo stack and set it as the current state
+        self.__state = self.undo_stack.pop()
+
+    def redo(self):
+        if not self.redo_stack:
+            # No actions to undo
+            return
+        # Move the current state to the undo stack
+        self.undo_stack.append(copy.deepcopy(self.__state))
+        # Pop the last state from the redo stack and set it as the current state
+        self.__state = self.redo_stack.pop()
 
     def simulate_future_board(self, move_origin: Position, move_destination: Position):
-        future_board = Board(copy.deepcopy(self.state))
+        future_board = Board(copy.deepcopy(self.__state))
         future_board.do_move(origin=move_origin, destination=move_destination)
         return future_board

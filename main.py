@@ -3,6 +3,8 @@ import os
 import pygame
 import sys
 
+from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN
+
 from board import Position, Board
 from color import Color
 from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size
@@ -27,27 +29,58 @@ def draw_pieces(selected_piece_position):
 
 
 def draw_moves(selected_piece_position):
+    safe_moves = set()
+    safe_capture_moves = set()
+    unsafe_moves = set()
+    unsafe_moves_with_relation_possibility = set()
     if selected_piece_position is not None:
         selected_piece = board.get(selected_piece_position)
-        for move, capture_move in selected_piece.get_moves(board, selected_piece_position):
-            if capture_move:
-                draw_outline_on_square(move.column, move.row, Color.GREEN, screen, SQUARE_SIZE)
+        for move, is_capture_move in selected_piece.get_moves(board, selected_piece_position):
+            if is_capture_move:
+                safe_capture_moves.add(move)
             else:
-                draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE)
-
-
-def draw_move_warnings(selected_piece_position):
-    if selected_piece_position is not None:
-        selected_piece = board.get(selected_piece_position)
-        for warning_pos in selected_piece.get_move_warnings(board, selected_piece_position):
-            draw_outline_on_square(warning_pos.column, warning_pos.row, Color.RED, screen, SQUARE_SIZE)
+                safe_moves.add(move)
+        for warning, opponent_origin in selected_piece.get_move_warnings(board, selected_piece_position):
+            # Simulate the dangerous move
+            future_board = board.simulate_future_board(move_origin=selected_piece_position, move_destination=warning)
+            # Simulate the opponent capturing the moved piece
+            future_board = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=warning)
+            opponent_piece = future_board.get(warning)
+            # Opponent would be exposed to a retaliation
+            if opponent_piece.is_currently_threatened(future_board, warning):
+                unsafe_moves_with_relation_possibility.add(warning)
+            # Opponent could capture safely
+            else:
+                unsafe_moves.add(warning)
+    for move in safe_moves:
+        draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE)
+    for move in safe_capture_moves:
+        draw_outline_on_square(move.column, move.row, Color.GREEN, screen, SQUARE_SIZE)
+    for move in unsafe_moves:
+        draw_outline_on_square(move.column, move.row, Color.RED, screen, SQUARE_SIZE)
+    for move in unsafe_moves_with_relation_possibility:
+        draw_outline_on_square(move.column, move.row, Color.MAGENTA, screen, SQUARE_SIZE)
 
 
 def draw_position_warnings():
     for pos in board.positions:
         if board.get(pos) is not None:
-            for capture_move_pos in board.get(pos).get_capture_moves(board, pos):
-                draw_outline_on_square(capture_move_pos.column, capture_move_pos.row, Color.ORANGE, screen, SQUARE_SIZE)
+            for warning in board.get(pos).get_capture_moves(board, pos):
+                future_board = board.simulate_future_board(move_origin=pos, move_destination=warning)
+                opponent_piece = future_board.get(warning)
+                # Opponent would be exposed to a retaliation
+                if opponent_piece.is_currently_threatened(future_board, warning):
+                    draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE)
+                # Opponent could capture safely
+                else:
+                    draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE)
+
+
+def check_promotion(selected_piece_position):
+    piece = board.get(selected_piece_position)
+    if isinstance(piece, Pawn):
+        if (piece.color == Color.BLACK and selected_piece_position.row == PROMOTION_ROW_BLACK) or (piece.color == Color.WHITE and selected_piece_position.row == PROMOTION_ROW_WHITE):
+            Pawn.promote(board, selected_piece_position, input("Promotion of a Pawn:\nEnter q for queen, r for rook, b for bishop, k for knight.\n"))
 
 
 if __name__ == '__main__':
@@ -62,6 +95,8 @@ if __name__ == '__main__':
     # Initialize Board
     ROWS, COLUMNS = 8, 8
     SQUARE_SIZE = get_square_size(WIDTH, COLUMNS)
+    PROMOTION_ROW_BLACK = 0
+    PROMOTION_ROW_WHITE = ROWS - 1
     INIT_BOARD = [
         [Rook(Color.WHITE), Knight(Color.WHITE), Bishop(Color.WHITE), Queen(Color.WHITE), King(Color.WHITE), Bishop(Color.WHITE), Knight(Color.WHITE), Rook(Color.WHITE)],
         [Pawn(Color.WHITE)] * COLUMNS,
@@ -85,21 +120,23 @@ if __name__ == '__main__':
         draw_pieces(selected_piece_pos)
         draw_position_warnings()
         draw_moves(selected_piece_pos)
-        draw_move_warnings(selected_piece_pos)
 
         for event in pygame.event.get():
-            if event.type == pygame.QUIT:
+            if event.type == QUIT:
                 running = False
+            elif event.type == KEYDOWN:
+                if event.key == K_BACKSPACE:
+                    board.undo()
+                elif event.key == K_RETURN:
+                    board.redo()
+            # Mouse events
             else:
                 mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE)
-                if event.type == pygame.MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
+                if event.type == MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
                     selected_piece_pos = Position.copy(mouse_pos)
                 elif event.type == pygame.MOUSEBUTTONUP and selected_piece_pos is not None:
-                    # if the origin of the move is not the same as the destination
-                    if mouse_pos != selected_piece_pos:
-                        # if the destination is not occupied or is occupied by a piece of the opposite color
-                        if board.get(mouse_pos) is None or board.get(selected_piece_pos).color != board.get(mouse_pos).color:
-                            board.do_move(origin=selected_piece_pos, destination=mouse_pos)
+                    board.do_move(origin=selected_piece_pos, destination=mouse_pos)
+                    check_promotion(mouse_pos)
                     selected_piece_pos = None
 
         pygame.display.flip()

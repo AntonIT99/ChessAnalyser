@@ -23,7 +23,7 @@ class Piece(ABC):
         - col: Current column of the piece.
 
         Returns:
-        - List of tuples representing valid squares the piece can move to and if the move is a capture or not (move: Postion, capture: bool).
+        - List of tuples representing valid squares the piece can move to and if the move is a capture or not (move: Postion, is_capture_move: bool).
         """
         pass
 
@@ -32,23 +32,23 @@ class Piece(ABC):
         Returns:
         - List of Position representing capture moves only.
         """
-        return [move for move, capture_move in self.get_moves(board, pos) if capture_move]
+        return [move for move, is_capture_move in self.get_moves(board, pos) if is_capture_move]
 
     def get_move_warnings(self, board, pos: Position):
         """
         Returns:
-        - List of Position representing move warnings.
+        - List of Tuples (location_of_move_warning: Position, origin_of_threat: Position) representing move warnings.
         """
         warnings = []
 
-        for move, capture_move in self.get_moves(board, pos):
+        for move, is_capture_move in self.get_moves(board, pos):
             warning_found = False
             future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
             for opponent_pos in self.__get_opponent_positions(future_board):
                 opponent_piece = future_board.get(opponent_pos)
                 for opponent_move in opponent_piece.get_capture_moves(future_board, opponent_pos):
                     if move == opponent_move:
-                        warnings.append(move)
+                        warnings.append((move, opponent_pos))
                         warning_found = True
                         break
                 if warning_found:
@@ -57,6 +57,15 @@ class Piece(ABC):
                 continue
 
         return warnings
+
+    def is_currently_threatened(self, board, pos: Position):
+        for position in board.positions:
+            if position != pos and board.get(position) is not None and board.get(position).color != self.color:
+                opponent_piece = board.get(position)
+                for capture_move in opponent_piece.get_capture_moves(board, position):
+                    if capture_move == pos:
+                        return True
+        return False
 
     def __get_opponent_positions(self, board):
         positions = []
@@ -83,9 +92,9 @@ class King(Piece):
 
         for r, c in king_moves:
             if 0 <= r <= board.last_row and 0 <= c <= board.last_column:
-                if board.state[r][c] is None:
+                if board.get(Position(row=r, column=c)) is None:
                     moves.append((Position(row=r, column=c), False))
-                elif board.state[r][c].color != self.color:
+                elif board.get(Position(row=r, column=c)).color != self.color:
                     moves.append((Position(row=r, column=c), True))
 
         return moves
@@ -108,14 +117,14 @@ class Queen(Piece):
         for dr, dc in directions:
             r, c = row + dr, col + dc
             while 0 <= r <= board.last_row and 0 <= c <= board.last_column:
-                if board.state[r][c] is None:
+                if board.get(Position(row=r, column=c)) is None:
                     moves.append((Position(row=r, column=c), False))
                     r += dr
                     c += dc
                 else:
                     # If there's a piece blocking, stop in that direction
                     # Capture move if the piece is of the opposite color
-                    if board.state[r][c].color != self.color:
+                    if board.get(Position(row=r, column=c)).color != self.color:
                         moves.append((Position(row=r, column=c), True))
                     break
 
@@ -136,14 +145,14 @@ class Bishop(Piece):
         for dr, dc in directions:
             r, c = row + dr, col + dc
             while 0 <= r <= board.last_row and 0 <= c <= board.last_column:
-                if board.state[r][c] is None:
+                if board.get(Position(row=r, column=c)) is None:
                     moves.append((Position(row=r, column=c), False))
                     r += dr
                     c += dc
                 else:
                     # If there's a piece blocking, stop in that direction
                     # Capture move if the piece is of the opposite color
-                    if board.state[r][c].color != self.color:
+                    if board.get(Position(row=r, column=c)).color != self.color:
                         moves.append((Position(row=r, column=c), True))
                     break
 
@@ -168,9 +177,9 @@ class Knight(Piece):
 
         for r, c in knight_moves:
             if 0 <= r <= board.last_row and 0 <= c <= board.last_column:
-                if board.state[r][c] is None:
+                if board.get(Position(row=r, column=c)) is None:
                     moves.append((Position(row=r, column=c), False))
-                elif board.state[r][c].color != self.color:
+                elif board.get(Position(row=r, column=c)).color != self.color:
                     moves.append((Position(row=r, column=c), True))
 
         return moves
@@ -190,14 +199,14 @@ class Rook(Piece):
         for dr, dc in directions:
             r, c = row + dr, col + dc
             while 0 <= r <= board.last_row and 0 <= c <= board.last_column:
-                if board.state[r][c] is None:
+                if board.get(Position(row=r, column=c)) is None:
                     moves.append((Position(row=r, column=c), False))
                     r += dr
                     c += dc
                 else:
                     # If there's a piece blocking, stop in that direction
                     # Capture move if the piece is of the opposite color
-                    if board.state[r][c].color != self.color:
+                    if board.get(Position(row=r, column=c)).color != self.color:
                         moves.append((Position(row=r, column=c), True))
                     break
 
@@ -208,6 +217,18 @@ class Pawn(Piece):
     def __init__(self, color):
         super().__init__(color, "♟")
 
+    @classmethod
+    def promote(cls, board, position, new_type: str):
+        color = board.get(position).color
+        if new_type == "r":
+            board.set(position, Rook(color))
+        elif new_type == "b":
+            board.set(position, Bishop(color))
+        elif new_type == "k":
+            board.set(position, Knight(color))
+        else:
+            board.set(position, Queen(color))
+
     def get_moves(self, board, pos):
         moves = []
         row = pos.row
@@ -216,33 +237,33 @@ class Pawn(Piece):
         if self.color == Color.BLACK:
             # Black pawn moves upward (increasing row number)
             # Normal move (one square forward)
-            if row > 0 and board.state[row - 1][col] is None:
+            if row > 0 and board.get(Position(row=row - 1, column=col)) is None:
                 moves.append((Position(row=row - 1, column=col), False))
 
             # Initial double move (two squares forward)
-            if row == board.last_row - 1 and board.state[row - 1][col] is None and board.state[row - 2][col] is None:
+            if row == board.last_row - 1 and board.get(Position(row=row - 1, column=col)) is None and board.get(Position(row=row - 2, column=col)) is None:
                 moves.append((Position(row=row - 2, column=col), False))
 
             # Capture moves (diagonally forward)
-            if row > 0 and col > 0 and board.state[row - 1][col - 1] is not None and board.state[row - 1][col - 1].color != self.color:
+            if row > 0 and col > 0 and board.get(Position(row=row - 1, column=col - 1)) is not None and board.get(Position(row=row - 1, column=col - 1)).color != self.color:
                 moves.append((Position(row=row - 1, column=col - 1), True))
-            if row > 0 and col < board.last_column and board.state[row - 1][col + 1] is not None and board.state[row - 1][col + 1].color != self.color:
+            if row > 0 and col < board.last_column and board.get(Position(row=row - 1, column=col + 1)) is not None and board.get(Position(row=row - 1, column=col + 1)).color != self.color:
                 moves.append((Position(row=row - 1, column=col + 1), True))
 
         elif self.color == Color.WHITE:
             # White pawn moves downward (decreasing row number)
             # Normal move (one square forward)
-            if row < board.last_row and board.state[row + 1][col] is None:
+            if row < board.last_row and board.get(Position(row=row + 1, column=col)) is None:
                 moves.append((Position(row=row + 1, column=col), False))
 
             # Initial double move (two squares forward)
-            if row == 1 and board.state[row + 1][col] is None and board.state[row + 2][col] is None:
+            if row == 1 and board.get(Position(row=row + 1, column=col)) is None and board.get(Position(row=row + 2, column=col)) is None:
                 moves.append((Position(row=row + 2, column=col), False))
 
             # Capture moves (diagonally forward)
-            if row < board.last_row and col > 0 and board.state[row + 1][col - 1] is not None and board.state[row + 1][col - 1].color != self.color:
+            if row < board.last_row and col > 0 and board.get(Position(row=row + 1, column=col - 1)) is not None and board.get(Position(row=row + 1, column=col - 1)).color != self.color:
                 moves.append((Position(row=row + 1, column=col - 1), True))
-            if row < board.last_row and col < board.last_column and board.state[row + 1][col + 1] is not None and board.state[row + 1][col + 1].color != self.color:
+            if row < board.last_row and col < board.last_column and board.get(Position(row=row + 1, column=col + 1)) is not None and board.get(Position(row=row + 1, column=col + 1)).color != self.color:
                 moves.append((Position(row=row + 1, column=col + 1), True))
 
         return moves
