@@ -235,7 +235,24 @@ class Pawn(Piece):
         col = pos.column
 
         if self.color == Color.BLACK:
-            # Black pawn moves upward (increasing row number)
+            # White pawn moves downward (increasing row number)
+            # Normal move (one square forward)
+            if row < board.last_row and board.get(Position(row=row + 1, column=col)) is None:
+                moves.append((Position(row=row + 1, column=col), False))
+
+            # Initial double move (two squares forward)
+            if row == 1 and board.get(Position(row=row + 1, column=col)) is None and board.get(Position(row=row + 2, column=col)) is None:
+                moves.append((Position(row=row + 2, column=col), False))
+
+            # Capture moves (diagonally forward)
+            if row < board.last_row and col > 0 and board.get(Position(row=row + 1, column=col - 1)) is not None and board.get(Position(row=row + 1, column=col - 1)).color != self.color:
+                moves.append((Position(row=row + 1, column=col - 1), True))
+            if row < board.last_row and col < board.last_column and board.get(Position(row=row + 1, column=col + 1)) is not None and board.get(
+                    Position(row=row + 1, column=col + 1)).color != self.color:
+                moves.append((Position(row=row + 1, column=col + 1), True))
+
+        elif self.color == Color.WHITE:
+            # Black pawn moves upward (decreasing row number)
             # Normal move (one square forward)
             if row > 0 and board.get(Position(row=row - 1, column=col)) is None:
                 moves.append((Position(row=row - 1, column=col), False))
@@ -249,21 +266,5 @@ class Pawn(Piece):
                 moves.append((Position(row=row - 1, column=col - 1), True))
             if row > 0 and col < board.last_column and board.get(Position(row=row - 1, column=col + 1)) is not None and board.get(Position(row=row - 1, column=col + 1)).color != self.color:
                 moves.append((Position(row=row - 1, column=col + 1), True))
-
-        elif self.color == Color.WHITE:
-            # White pawn moves downward (decreasing row number)
-            # Normal move (one square forward)
-            if row < board.last_row and board.get(Position(row=row + 1, column=col)) is None:
-                moves.append((Position(row=row + 1, column=col), False))
-
-            # Initial double move (two squares forward)
-            if row == 1 and board.get(Position(row=row + 1, column=col)) is None and board.get(Position(row=row + 2, column=col)) is None:
-                moves.append((Position(row=row + 2, column=col), False))
-
-            # Capture moves (diagonally forward)
-            if row < board.last_row and col > 0 and board.get(Position(row=row + 1, column=col - 1)) is not None and board.get(Position(row=row + 1, column=col - 1)).color != self.color:
-                moves.append((Position(row=row + 1, column=col - 1), True))
-            if row < board.last_row and col < board.last_column and board.get(Position(row=row + 1, column=col + 1)) is not None and board.get(Position(row=row + 1, column=col + 1)).color != self.color:
-                moves.append((Position(row=row + 1, column=col + 1), True))
 
         return moves

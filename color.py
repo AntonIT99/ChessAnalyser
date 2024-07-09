@@ -2,8 +2,8 @@ from enum import Enum
 
 
 class Color(Enum):
-    WHITE = (0, 0, 0)
-    BLACK = (255, 255, 255)
+    WHITE = (255, 255, 255)
+    BLACK = (0, 0, 0)
     DARK_BROWN = (101, 67, 33)
     LIGHT_BROWN = (222, 184, 135)
     RED = (255, 0, 0)
