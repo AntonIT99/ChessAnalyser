@@ -3,7 +3,7 @@ import os
 import pygame
 import sys
 
-from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN
+from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN, K_LSHIFT
 
 from board import Position, Board
 from color import Color
@@ -21,7 +21,7 @@ def draw_pieces(selected_piece_position):
         if selected_piece_position is None or pos != selected_piece_position:
             piece = board.get(pos)
             if piece is not None:
-                render_piece_on(piece, pos.column, pos.row, font, screen, SQUARE_SIZE)
+                render_piece_on(piece, pos.column, pos.row, font, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     if selected_piece_position is not None:
         mouse = pygame.Vector2(pygame.mouse.get_pos())
         selected_piece = board.get(selected_piece_position)
@@ -61,17 +61,17 @@ def draw_moves(selected_piece_position):
             else:
                 unsafe_moves.add(warning)
     for move in safe_moves:
-        draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE)
+        draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in safe_capture_moves:
-        draw_outline_on_square(move.column, move.row, Color.GREEN, screen, SQUARE_SIZE)
+        draw_outline_on_square(move.column, move.row, Color.GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in unsafe_moves:
-        draw_outline_on_square(move.column, move.row, Color.RED, screen, SQUARE_SIZE)
+        draw_outline_on_square(move.column, move.row, Color.RED, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in unsafe_moves_with_relation_possibility:
-        draw_outline_on_square(move.column, move.row, Color.MAGENTA, screen, SQUARE_SIZE)
+        draw_outline_on_square(move.column, move.row, Color.MAGENTA, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in checkmate_moves:
-        draw_outline_on_square(move.column, move.row, Color.WHITE, screen, SQUARE_SIZE)
+        draw_outline_on_square(move.column, move.row, Color.WHITE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in stalemate_moves:
-        draw_outline_on_square(move.column, move.row, Color.BLACK, screen, SQUARE_SIZE)
+        draw_outline_on_square(move.column, move.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
 
 def check_checkmate_and_stalemate(selected_piece_position, move):
@@ -115,10 +115,10 @@ def draw_position_warnings():
                 opponent_piece = future_board.get(warning)
                 # Opponent would be exposed to a retaliation
                 if opponent_piece.is_currently_threatened(future_board, warning):
-                    draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE)
+                    draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
                 # Opponent could capture safely
                 else:
-                    draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE)
+                    draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
 
 def check_promotion(selected_piece_position):
@@ -159,6 +159,7 @@ if __name__ == '__main__':
 
     # Main loop
     selected_piece_pos = None
+    rotated = False
     running = True
     while running:
         draw_board()
@@ -174,9 +175,11 @@ if __name__ == '__main__':
                     board.undo()
                 elif event.key == K_RETURN:
                     board.redo()
+                elif event.key == K_LSHIFT:
+                    rotated = not rotated
             # Mouse events
             else:
-                mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE)
+                mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE, rotated)
                 if event.type == MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
                     selected_piece_pos = Position.copy(mouse_pos)
                 elif event.type == pygame.MOUSEBUTTONUP and selected_piece_pos is not None:

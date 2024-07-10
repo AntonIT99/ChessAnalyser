@@ -235,7 +235,7 @@ class Pawn(Piece):
         col = pos.column
 
         if self.color == Color.BLACK:
-            # White pawn moves downward (increasing row number)
+            # Black pawn moves downward (increasing row number)
             # Normal move (one square forward)
             if row < board.last_row and board.get(Position(row=row + 1, column=col)) is None:
                 moves.append((Position(row=row + 1, column=col), False))
@@ -252,7 +252,7 @@ class Pawn(Piece):
                 moves.append((Position(row=row + 1, column=col + 1), True))
 
         elif self.color == Color.WHITE:
-            # Black pawn moves upward (decreasing row number)
+            # White pawn moves upward (decreasing row number)
             # Normal move (one square forward)
             if row > 0 and board.get(Position(row=row - 1, column=col)) is None:
                 moves.append((Position(row=row - 1, column=col), False))

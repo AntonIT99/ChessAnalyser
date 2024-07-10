@@ -15,7 +15,10 @@ def draw_square(col, row, color, screen, square_size):
 
 
 # Draw an outline for the specified column/row
-def draw_outline_on_square(col, row, color, screen, square_size):
+def draw_outline_on_square(col, row, color, screen, square_size, columns, rows, rotated):
+    if rotated:
+        col = columns - 1 - col
+        row = rows - 1 - row
     pygame.draw.rect(screen, color.value, (col * square_size, row * square_size, square_size, square_size), int(0.05 * square_size))
 
 
@@ -26,15 +29,21 @@ def render_piece_centered(piece, pos_x, pos_y, font, screen):
 
 
 # Render a piece to a specified column/row
-def render_piece_on(piece, col, row, font, screen, square_size):
+def render_piece_on(piece, col, row, font, screen, square_size, columns, rows, rotated):
+    if rotated:
+        col = columns - 1 - col
+        row = rows - 1 - row
     render_piece_centered(piece, col * square_size + square_size / 2, row * square_size + square_size / 2, font, screen)
 
 
 # returns the column/row under which the mouse cursor is
-def get_square_under_mouse(rows, cols, square_size) -> Position:
+def get_square_under_mouse(rows, columns, square_size, rotated) -> Position:
     mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
     col, row = [int(v // square_size) for v in mouse_pos]
-    return Position(column=clamp(col, 0, cols - 1), row=clamp(row, 0, rows - 1))
+    if rotated:
+        col = columns - 1 - col
+        row = rows - 1 - row
+    return Position(column=clamp(col, 0, columns - 1), row=clamp(row, 0, rows - 1))
 
 
 def clamp(value, minimum, maximum):
