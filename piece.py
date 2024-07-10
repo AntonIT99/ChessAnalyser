@@ -13,7 +13,7 @@ class Piece(ABC):
         return font.render(self.symbol, True, self.color.value)
 
     @abstractmethod
-    def get_moves(self, board, pos: Position):
+    def get_moves_ignore_illegal(self, board, pos: Position):
         """
         Function to return a list of squares that a piece can move to.
 
@@ -23,9 +23,31 @@ class Piece(ABC):
         - col: Current column of the piece.
 
         Returns:
-        - List of tuples representing valid squares the piece can move to and if the move is a capture or not (move: Postion, is_capture_move: bool).
+        - List of tuples representing squares the piece can move to and if the move is a capture or not (move: Postion, is_capture_move: bool).
         """
         pass
+
+    def get_moves(self, board, pos):
+        """
+        Returns:
+        - List of tuples representing squares the piece can move to (only legal moves) and if the move is a capture or not (move: Postion, is_capture_move: bool).
+        """
+        return self.only_legal_moves(board, pos, self.get_moves_ignore_illegal(board, pos))
+
+    def only_legal_moves(self, board, pos: Position, moves):
+        """
+        Returns:
+        - List of tuples representing squares the piece can move to (only legal moves) and if the move is a capture or not (move: Postion, is_capture_move: bool).
+         """
+        legal_moves = []
+
+        for move, is_capture_move in moves:
+            future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
+            king_pos = self.__get_own_king_position(future_board)
+            if not future_board.get(king_pos).is_currently_threatened(future_board, king_pos, ignore_illegal_moves=True):
+                legal_moves.append((move, is_capture_move))
+
+        return legal_moves
 
     def get_capture_moves(self, board, pos: Position):
         """
@@ -58,19 +80,26 @@ class Piece(ABC):
 
         return warnings
 
-    def is_currently_threatened(self, board, pos: Position, ignore_king_illegal_moves=False):
+    def is_currently_threatened(self, board, pos: Position, ignore_illegal_moves=False):
         for threat_position in board.positions:
             if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
                 opponent_piece = board.get(threat_position)
-                if isinstance(opponent_piece, King) and ignore_king_illegal_moves:
-                    for king_move in opponent_piece.get_moves_ignore_illegal(board, threat_position):
-                        if king_move == pos:
+                if ignore_illegal_moves:
+                    for move in opponent_piece.get_moves_ignore_illegal(board, threat_position):
+                        if move == pos:
                             return True
                 else:
                     for capture_move in opponent_piece.get_capture_moves(board, threat_position):
                         if capture_move == pos:
                             return True
         return False
+
+    def __get_own_king_position(self, board):
+        king_pos = None
+        for pos in board.positions:
+            if isinstance(board.get(pos), King) and board.get(pos).color == self.color:
+                king_pos = pos
+        return king_pos
 
     def __get_opponent_positions(self, board):
         positions = []
@@ -109,7 +138,7 @@ class King(Piece):
         for move in self.get_moves_ignore_illegal(board, pos):
             is_capture_move = board.get(move) is not None
             future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
-            if not future_board.get(move).is_currently_threatened(future_board, move, ignore_king_illegal_moves=True):
+            if not future_board.get(move).is_currently_threatened(future_board, move, ignore_illegal_moves=True):
                 legal_moves.append((move, is_capture_move))
 
         return legal_moves
@@ -119,7 +148,7 @@ class Queen(Piece):
     def __init__(self, color):
         super().__init__(color, "♛")
 
-    def get_moves(self, board, pos):
+    def get_moves_ignore_illegal(self, board, pos):
         moves = []
         row = pos.row
         col = pos.column
@@ -150,7 +179,7 @@ class Bishop(Piece):
     def __init__(self, color):
         super().__init__(color, "♝")
 
-    def get_moves(self, board, pos):
+    def get_moves_ignore_illegal(self, board, pos):
         moves = []
         row = pos.row
         col = pos.column
@@ -178,7 +207,7 @@ class Knight(Piece):
     def __init__(self, color):
         super().__init__(color, "♞")
 
-    def get_moves(self, board, pos):
+    def get_moves_ignore_illegal(self, board, pos):
         moves = []
         row = pos.row
         col = pos.column
@@ -204,7 +233,7 @@ class Rook(Piece):
     def __init__(self, color):
         super().__init__(color, "♜")
 
-    def get_moves(self, board, pos):
+    def get_moves_ignore_illegal(self, board, pos):
         moves = []
         row = pos.row
         col = pos.column
@@ -244,7 +273,7 @@ class Pawn(Piece):
         else:
             board.set(position, Queen(color))
 
-    def get_moves(self, board, pos):
+    def get_moves_ignore_illegal(self, board, pos):
         moves = []
         row = pos.row
         col = pos.column
