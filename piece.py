@@ -44,7 +44,7 @@ class Piece(ABC):
         for move, is_capture_move in moves:
             future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
             king_pos = self.__get_own_king_position(future_board)
-            if not future_board.get(king_pos).is_currently_threatened(future_board, king_pos, ignore_illegal_moves=True):
+            if king_pos is not None and not future_board.get(king_pos).is_currently_threatened(future_board, king_pos, ignore_illegal_moves=True):
                 legal_moves.append((move, is_capture_move))
 
         return legal_moves
