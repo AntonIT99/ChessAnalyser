@@ -58,13 +58,18 @@ class Piece(ABC):
 
         return warnings
 
-    def is_currently_threatened(self, board, pos: Position):
-        for position in board.positions:
-            if position != pos and board.get(position) is not None and board.get(position).color != self.color:
-                opponent_piece = board.get(position)
-                for capture_move in opponent_piece.get_capture_moves(board, position):
-                    if capture_move == pos:
-                        return True
+    def is_currently_threatened(self, board, pos: Position, ignore_king_illegal_moves=False):
+        for threat_position in board.positions:
+            if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
+                opponent_piece = board.get(threat_position)
+                if isinstance(opponent_piece, King) and ignore_king_illegal_moves:
+                    for king_move in opponent_piece.get_moves_ignore_illegal(board, threat_position):
+                        if king_move == pos:
+                            return True
+                else:
+                    for capture_move in opponent_piece.get_capture_moves(board, threat_position):
+                        if capture_move == pos:
+                            return True
         return False
 
     def __get_opponent_positions(self, board):
@@ -79,7 +84,7 @@ class King(Piece):
     def __init__(self, color):
         super().__init__(color, "♚")
 
-    def get_moves(self, board, pos):
+    def get_moves_ignore_illegal(self, board, pos):
         moves = []
         row = pos.row
         col = pos.column
@@ -92,12 +97,22 @@ class King(Piece):
 
         for r, c in king_moves:
             if 0 <= r <= board.last_row and 0 <= c <= board.last_column:
-                if board.get(Position(row=r, column=c)) is None:
-                    moves.append((Position(row=r, column=c), False))
-                elif board.get(Position(row=r, column=c)).color != self.color:
-                    moves.append((Position(row=r, column=c), True))
+                move = Position(row=r, column=c)
+                if board.get(move) is None or board.get(move).color != self.color:
+                    moves.append(move)
 
         return moves
+
+    def get_moves(self, board, pos):
+        legal_moves = []
+
+        for move in self.get_moves_ignore_illegal(board, pos):
+            is_capture_move = board.get(move) is not None
+            future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
+            if not future_board.get(move).is_currently_threatened(future_board, move, ignore_king_illegal_moves=True):
+                legal_moves.append((move, is_capture_move))
+
+        return legal_moves
 
 
 class Queen(Piece):

@@ -76,7 +76,6 @@ def draw_moves(selected_piece_position):
 
 def check_checkmate_and_stalemate(selected_piece_position, move):
     future_board = board.simulate_future_board(move_origin=selected_piece_position, move_destination=move)
-    has_legal_king_move = False
     has_other_piece_move = False
     adversary_king_pos = None
 
@@ -96,12 +95,7 @@ def check_checkmate_and_stalemate(selected_piece_position, move):
                     has_other_piece_move = True
                     break
 
-    for king_move, is_capture_move in future_board.get(adversary_king_pos).get_moves(future_board, adversary_king_pos):
-        escape_try = future_board.simulate_future_board(move_origin=adversary_king_pos, move_destination=king_move)
-        if not escape_try.get(king_move).is_currently_threatened(escape_try, king_move):
-            has_legal_king_move = True
-            break
-
+    has_legal_king_move = len(future_board.get(adversary_king_pos).get_moves(future_board, adversary_king_pos)) > 0
     is_checkmate = is_check and not has_legal_king_move
     is_stalemate = not is_check and not has_legal_king_move and not has_other_piece_move
     return is_checkmate, is_stalemate

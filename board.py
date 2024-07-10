@@ -53,6 +53,7 @@ class Board:
             # Update the state by doing the move
             self.__state[destination.row][destination.column] = self.get(origin)
             self.__state[origin.row][origin.column] = None
+            self.__state[destination.row][destination.column].has_moved = True
             # Clear the redo stack because we have a new state
             self.redo_stack.clear()
 
