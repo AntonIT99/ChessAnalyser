@@ -1,3 +1,4 @@
+import argparse
 import os
 
 import pygame
@@ -137,11 +138,19 @@ def check_promotion(new_position):
 
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-res', '--resolution', type=int,
+                        help='Set the resolution WIDTH/HEIGHT e.g. -res 1000')
+    args = parser.parse_args()
+
     # Initialize Pygame
     pygame.init()
 
     # Initialize screen
     WIDTH, HEIGHT = 800, 800
+    if args.resolution:
+        WIDTH, HEIGHT = int(args.resolution), int(args.resolution)
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption('Chess')
 
