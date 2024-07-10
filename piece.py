@@ -85,7 +85,7 @@ class Piece(ABC):
             if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
                 opponent_piece = board.get(threat_position)
                 if ignore_illegal_moves:
-                    for move in opponent_piece.get_moves_ignore_illegal(board, threat_position):
+                    for move, is_capture_move in opponent_piece.get_moves_ignore_illegal(board, threat_position):
                         if move == pos:
                             return True
                 else:
@@ -127,16 +127,16 @@ class King(Piece):
         for r, c in king_moves:
             if 0 <= r <= board.last_row and 0 <= c <= board.last_column:
                 move = Position(row=r, column=c)
+                is_capture_move = board.get(move) is not None
                 if board.get(move) is None or board.get(move).color != self.color:
-                    moves.append(move)
+                    moves.append((move, is_capture_move))
 
         return moves
 
     def get_moves(self, board, pos):
         legal_moves = []
 
-        for move in self.get_moves_ignore_illegal(board, pos):
-            is_capture_move = board.get(move) is not None
+        for move, is_capture_move in self.get_moves_ignore_illegal(board, pos):
             future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
             if not future_board.get(move).is_currently_threatened(future_board, move, ignore_illegal_moves=True):
                 legal_moves.append((move, is_capture_move))

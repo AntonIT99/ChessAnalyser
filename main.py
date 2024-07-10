@@ -51,26 +51,29 @@ def calculate_positions_and_moves():
             else:
                 safe_moves.add(move)
 
-        for warning, opponent_origin in selected_piece.get_move_warnings(board, selected_piece_pos):
-            # Simulate the dangerous move
-            future_board = board.simulate_future_board(move_origin=selected_piece_pos, move_destination=warning)
-            # Simulate the opponent capturing the moved piece
-            future_board = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=warning)
-            opponent_piece = future_board.get(warning)
-            # Opponent would be exposed to a retaliation
-            if opponent_piece.is_currently_threatened(future_board, warning):
-                unsafe_moves_with_relation_possibility.add(warning)
-            # Opponent could capture safely
-            else:
-                unsafe_moves.add(warning)
+        # Unsafe moves are forbidden for Kings
+        if not isinstance(selected_piece, King):
+            for warning, opponent_origin in selected_piece.get_move_warnings(board, selected_piece_pos):
+                # Simulate the dangerous move
+                future_board = board.simulate_future_board(move_origin=selected_piece_pos, move_destination=warning)
+                # Simulate the opponent capturing the moved piece
+                future_board = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=warning)
+                opponent_piece = future_board.get(warning)
+                # Opponent would be exposed to a retaliation
+                if opponent_piece.is_currently_threatened(future_board, warning):
+                    unsafe_moves_with_relation_possibility.add(warning)
+                # Opponent could capture safely
+                else:
+                    unsafe_moves.add(warning)
 
     for pos in board.positions:
         if board.get(pos) is not None:
             for warning in board.get(pos).get_capture_moves(board, pos):
                 future_board = board.simulate_future_board(move_origin=pos, move_destination=warning)
+                captured_piece = board.get(warning)
                 opponent_piece = future_board.get(warning)
-                # Opponent would be exposed to a retaliation
-                if opponent_piece.is_currently_threatened(future_board, warning):
+                # Opponent would be exposed to a retaliation (only if the captured piece is not a King otherwise it ends there)
+                if not isinstance(captured_piece, King) and opponent_piece.is_currently_threatened(future_board, warning):
                     threatened_positions_with_relation_possibility.add(warning)
                 # Opponent could capture safely
                 else:
