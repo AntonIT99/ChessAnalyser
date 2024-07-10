@@ -207,7 +207,6 @@ if __name__ == '__main__':
 
             if event.type == KEYDOWN or event.type == MOUSEBUTTONDOWN or event.type == MOUSEBUTTONUP:
                 calculate_positions_and_moves()
-                print(safe_moves)
 
         pygame.display.flip()
 
