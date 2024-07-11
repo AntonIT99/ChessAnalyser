@@ -1,22 +1,7 @@
 import copy
 
-
-class Position:
-    def __init__(self, row, column):
-        self.row = row
-        self.column = column
-
-    def __eq__(self, other):
-        if isinstance(other, Position):
-            return self.row == other.row and self.column == other.column
-        return False
-
-    def __hash__(self):
-        return hash((self.row, self.column))
-
-    @classmethod
-    def copy(cls, other):
-        return cls(row=other.row, column=other.column)
+from piece import castling
+from position import Position
 
 
 class Board:
@@ -48,12 +33,25 @@ class Board:
     def do_move(self, origin: Position, destination: Position):
         # if the destination is not the origin and the destination is not occupied or is occupied by a piece of the opposite color
         if origin != destination and (self.get(origin) is not None or self.get(origin).color != self.get(destination).color):
+
             # Save the current state to the undo stack before changing it
             self.undo_stack.append(copy.deepcopy(self.__state))
+
             # Update the state by doing the move
-            self.__state[destination.row][destination.column] = self.get(origin)
+
+            is_castling, other_origin = castling(self, origin, destination)
+            if is_castling:
+                other = self.get(other_origin)
+                other_destination = other.get_castling_move(self, origin, other_origin)
+                self.__state[other_destination.row][other_destination.column] = other
+                self.__state[other_origin.row][other_origin.column] = None
+                other.has_moved = True
+
+            piece = self.get(origin)
+            self.__state[destination.row][destination.column] = piece
             self.__state[origin.row][origin.column] = None
-            self.__state[destination.row][destination.column].has_moved = True
+            piece.has_moved = True
+
             # Clear the redo stack because we have a new state
             self.redo_stack.clear()
 

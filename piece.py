@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from board import Position
+from position import Position
 from color import Color
 
 
@@ -8,6 +8,7 @@ class Piece(ABC):
     def __init__(self, color, symbol):
         self.color = color
         self.symbol = symbol
+        self.has_moved = False
 
     def render(self, font):
         return font.render(self.symbol, True, self.color.value)
@@ -43,8 +44,8 @@ class Piece(ABC):
 
         for move, is_capture_move in moves:
             future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
-            king_pos = self.__get_own_king_position(future_board)
-            if king_pos is not None and not future_board.get(king_pos).is_currently_threatened(future_board, king_pos, ignore_illegal_moves=True):
+            king_pos = self.get_own_king_position(future_board)
+            if king_pos is not None and not future_board.get(king_pos).is_currently_threatened(future_board, king_pos):
                 legal_moves.append((move, is_capture_move))
 
         return legal_moves
@@ -80,21 +81,16 @@ class Piece(ABC):
 
         return warnings
 
-    def is_currently_threatened(self, board, pos: Position, ignore_illegal_moves=False):
+    def is_currently_threatened(self, board, pos: Position):
         for threat_position in board.positions:
             if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
                 opponent_piece = board.get(threat_position)
-                if ignore_illegal_moves:
-                    for move, is_capture_move in opponent_piece.get_moves_ignore_illegal(board, threat_position):
-                        if move == pos:
-                            return True
-                else:
-                    for capture_move in opponent_piece.get_capture_moves(board, threat_position):
-                        if capture_move == pos:
-                            return True
+                for capture_move in opponent_piece.get_capture_moves(board, threat_position):
+                    if capture_move == pos:
+                        return True
         return False
 
-    def __get_own_king_position(self, board):
+    def get_own_king_position(self, board):
         king_pos = None
         for pos in board.positions:
             if isinstance(board.get(pos), King) and board.get(pos).color == self.color:
@@ -112,6 +108,15 @@ class Piece(ABC):
 class King(Piece):
     def __init__(self, color):
         super().__init__(color, "♚")
+
+    def is_currently_threatened(self, board, pos: Position):
+        for threat_position in board.positions:
+            if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
+                opponent_piece = board.get(threat_position)
+                for move, is_capture_move in opponent_piece.get_moves_ignore_illegal(board, threat_position):
+                    if move == pos:
+                        return True
+        return False
 
     def get_moves_ignore_illegal(self, board, pos):
         moves = []
@@ -131,14 +136,25 @@ class King(Piece):
                 if board.get(move) is None or board.get(move).color != self.color:
                     moves.append((move, is_capture_move))
 
+        for position in board.positions:
+            if isinstance(board.get(position), Rook) and board.get(position).color == self.color:
+                if can_castle(board, pos, position):
+                    moves.append((King.get_castling_move(board, pos, position), False))
+
         return moves
+
+    @classmethod
+    def get_castling_move(cls, board, position1: Position, position2: Position) -> Position:
+        king_position = position1 if isinstance(board.get(position1), King) else position2
+        rook_position = position2 if isinstance(board.get(position1), King) else position1
+        return Position(row=king_position.row, column=king_position.column + get_castling_direction(king_position, rook_position) * 2)
 
     def get_moves(self, board, pos):
         legal_moves = []
 
         for move, is_capture_move in self.get_moves_ignore_illegal(board, pos):
             future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
-            if not future_board.get(move).is_currently_threatened(future_board, move, ignore_illegal_moves=True):
+            if not future_board.get(move).is_currently_threatened(future_board, move):
                 legal_moves.append((move, is_capture_move))
 
         return legal_moves
@@ -256,6 +272,13 @@ class Rook(Piece):
 
         return moves
 
+    @classmethod
+    def get_castling_move(cls, board, position1: Position, position2: Position) -> Position:
+        rook_position = position1 if isinstance(board.get(position1), Rook) else position2
+        king_position = position2 if isinstance(board.get(position1), Rook) else position1
+        direction = get_castling_direction(king_position, rook_position)
+        return Position(row=rook_position.row, column=rook_position.column - direction * (2 if direction > 0 else 3))
+
 
 class Pawn(Piece):
     def __init__(self, color):
@@ -312,3 +335,35 @@ class Pawn(Piece):
                 moves.append((Position(row=row - 1, column=col + 1), True))
 
         return moves
+
+
+def can_castle(board, king_position, rook_position) -> bool | int:
+    king = board.get(king_position)
+    rook = board.get(rook_position)
+    if king is not None and rook is not None:
+        if king.color == rook.color and not king.has_moved and not rook.has_moved and king_position.row == rook_position.row:
+            for col in range(min(king_position.column + 1, rook_position.column + 1), max(king_position.column, rook_position.column)):
+                if board.get(Position(row=king_position.row, column=col)) is not None:
+                    return False
+            direction = get_castling_direction(king_position, rook_position)
+            for col in range(king_position.column, king_position.column + direction * 3, direction):
+                if king.is_currently_threatened(board, Position(row=king_position.row, column=col)):
+                    return False
+            return True
+    return False
+
+
+def get_castling_direction(king_position, rook_position):
+    return int((rook_position.column - king_position.column) / abs(rook_position.column - king_position.column))
+
+
+def castling(board, move_origin: Position, move_destination: Position) -> (bool, Position):
+    piece = board.get(move_origin)
+    if isinstance(piece, King):
+        for position in board.positions:
+            if isinstance(board.get(position), Rook) and board.get(position).color == piece.color and can_castle(board, move_origin, position):
+                if abs(move_destination.column - move_origin.column) == 2 and move_destination.row == move_origin.row:
+                    direction = int((move_destination.column - move_origin.column) / abs(move_destination.column - move_origin.column))
+                    if (position.column == 0 and direction < 0) or (position.column == board.last_column and direction > 0):
+                        return True, position
+    return False, None
