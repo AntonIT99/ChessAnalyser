@@ -6,10 +6,11 @@ import sys
 
 from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN, K_LSHIFT, MOUSEBUTTONUP
 
-from board import Position, Board
+from position import Position
+from board import Board
 from color import Color
 from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size
-from piece import Rook, Knight, Bishop, Pawn, Queen, King
+from piece import Rook, Knight, Bishop, Pawn, Queen, King, en_passant
 
 
 def draw_board():
@@ -54,27 +55,29 @@ def calculate_positions_and_moves():
 
         # Unsafe moves are forbidden for Kings
         if not isinstance(selected_piece, King):
-            for warning, opponent_origin in selected_piece.get_move_warnings(board, selected_piece_pos):
+            for unsafe_move, opponent_origin in selected_piece.get_unsafe_moves(board, selected_piece_pos):
                 # Simulate the dangerous move
-                future_board = board.simulate_future_board(move_origin=selected_piece_pos, move_destination=warning)
+                future_board = board.simulate_future_board(move_origin=selected_piece_pos, move_destination=unsafe_move)
                 # Simulate the opponent capturing the moved piece
-                future_board = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=warning)
-                opponent_piece = future_board.get(warning)
+                future_board = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=unsafe_move)
+                opponent_piece = future_board.get(unsafe_move)
                 # Opponent would be exposed to a retaliation
-                if opponent_piece.is_currently_threatened(future_board, warning):
-                    unsafe_moves_with_relation_possibility.add(warning)
+                if opponent_piece.is_currently_threatened(future_board, unsafe_move):
+                    unsafe_moves_with_relation_possibility.add(unsafe_move)
                 # Opponent could capture safely
                 else:
-                    unsafe_moves.add(warning)
+                    unsafe_moves.add(unsafe_move)
 
     for pos in board.positions:
         if board.get(pos) is not None:
-            for warning in board.get(pos).get_capture_moves(board, pos):
-                future_board = board.simulate_future_board(move_origin=pos, move_destination=warning)
-                captured_piece = board.get(warning)
-                opponent_piece = future_board.get(warning)
+            for capture_move in board.get(pos).get_capture_moves(board, pos):
+                future_board = board.simulate_future_board(move_origin=pos, move_destination=capture_move)
+                captured_piece = board.get(capture_move)
+                opponent_piece = future_board.get(capture_move)
+                is_en_passant, captured_piece_position = en_passant(board, pos, capture_move)
+                warning = captured_piece_position if is_en_passant else capture_move
                 # Opponent would be exposed to a retaliation (only if the captured piece is not a King otherwise it ends there)
-                if not isinstance(captured_piece, King) and opponent_piece.is_currently_threatened(future_board, warning):
+                if not isinstance(captured_piece, King) and opponent_piece.is_currently_threatened(future_board, capture_move):
                     threatened_positions_with_relation_possibility.add(warning)
                 # Opponent could capture safely
                 else:

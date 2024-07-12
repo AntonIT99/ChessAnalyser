@@ -57,10 +57,10 @@ class Piece(ABC):
         """
         return [move for move, is_capture_move in self.get_moves(board, pos) if is_capture_move]
 
-    def get_move_warnings(self, board, pos: Position):
+    def get_unsafe_moves(self, board, pos: Position):
         """
         Returns:
-        - List of Tuples (location_of_move_warning: Position, origin_of_threat: Position) representing move warnings.
+        - List of Tuples (location_of_move_warning: Position, origin_of_threat: Position) representing unsafe moves.
         """
         warnings = []
 
@@ -70,7 +70,8 @@ class Piece(ABC):
             for opponent_pos in self.__get_opponent_positions(future_board):
                 opponent_piece = future_board.get(opponent_pos)
                 for opponent_move in opponent_piece.get_capture_moves(future_board, opponent_pos):
-                    if move == opponent_move:
+                    is_en_passant, captured_position = en_passant(future_board, opponent_pos, opponent_move)
+                    if move == opponent_move or (is_en_passant and move == captured_position):
                         warnings.append((move, opponent_pos))
                         warning_found = True
                         break
@@ -296,6 +297,39 @@ class Pawn(Piece):
         else:
             board.set(position, Queen(color))
 
+    def get_en_passant_moves(self, board, pos):
+        moves = []
+        if board.has_previous_state():
+
+            row = pos.row
+            col = pos.column
+
+            if self.color == Color.BLACK and row == board.last_row - 3:
+                if col > 0:
+                    opponent_pawn = board.get(Position(row=row, column=col - 1))
+                    opponent_pawn_previous_state = board.get_previous_state(Position(row=row + 2, column=col - 1))
+                    if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
+                        moves.append(Position(row=row + 1, column=col - 1))
+                elif col < board.last_column:
+                    opponent_pawn = board.get(Position(row=row, column=col + 1))
+                    opponent_pawn_previous_state = board.get_previous_state(Position(row=row + 2, column=col + 1))
+                    if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
+                        moves.append(Position(row=row + 1, column=col + 1))
+
+            elif self.color == Color.WHITE and row == 3:
+                if col > 0:
+                    opponent_pawn = board.get(Position(row=row, column=col - 1))
+                    opponent_pawn_previous_state = board.get_previous_state(Position(row=row - 2, column=col - 1))
+                    if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
+                        moves.append(Position(row=row - 1, column=col - 1))
+                if col < board.last_column:
+                    opponent_pawn = board.get(Position(row=row, column=col + 1))
+                    opponent_pawn_previous_state = board.get_previous_state(Position(row=row - 2, column=col + 1))
+                    if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
+                        moves.append(Position(row=row - 1, column=col - 1))
+
+        return moves
+
     def get_moves_ignore_illegal(self, board, pos):
         moves = []
         row = pos.row
@@ -314,8 +348,7 @@ class Pawn(Piece):
             # Capture moves (diagonally forward)
             if row < board.last_row and col > 0 and board.get(Position(row=row + 1, column=col - 1)) is not None and board.get(Position(row=row + 1, column=col - 1)).color != self.color:
                 moves.append((Position(row=row + 1, column=col - 1), True))
-            if row < board.last_row and col < board.last_column and board.get(Position(row=row + 1, column=col + 1)) is not None and board.get(
-                    Position(row=row + 1, column=col + 1)).color != self.color:
+            if row < board.last_row and col < board.last_column and board.get(Position(row=row + 1, column=col + 1)) is not None and board.get(Position(row=row + 1, column=col + 1)).color != self.color:
                 moves.append((Position(row=row + 1, column=col + 1), True))
 
         elif self.color == Color.WHITE:
@@ -333,6 +366,9 @@ class Pawn(Piece):
                 moves.append((Position(row=row - 1, column=col - 1), True))
             if row > 0 and col < board.last_column and board.get(Position(row=row - 1, column=col + 1)) is not None and board.get(Position(row=row - 1, column=col + 1)).color != self.color:
                 moves.append((Position(row=row - 1, column=col + 1), True))
+
+        for move in self.get_en_passant_moves(board, pos):
+            moves.append((move, True))
 
         return moves
 
@@ -366,4 +402,27 @@ def castling(board, move_origin: Position, move_destination: Position) -> (bool,
                     direction = int((move_destination.column - move_origin.column) / abs(move_destination.column - move_origin.column))
                     if (position.column == 0 and direction < 0) or (position.column == board.last_column and direction > 0):
                         return True, position
+    return False, None
+
+
+def en_passant(board, move_origin: Position, move_destination: Position) -> (bool, Position):
+    """
+    Returns:
+        - if a move is en_passant or not
+        - Position of the captured pawn
+    """
+    if board.has_previous_state() and abs(move_destination.column - move_origin.column) == 1:
+        own_pawn = board.get(move_origin)
+        captured_pawn_position = Position(row=move_origin.row, column=move_destination.column)
+        captured_pawn = board.get(captured_pawn_position)
+        if isinstance(own_pawn, Pawn) and isinstance(captured_pawn, Pawn) and own_pawn.color != captured_pawn.color:
+            if own_pawn.color == Color.BLACK and move_origin.row == board.last_row - 3 and move_destination.row == move_origin.row + 1:
+                captured_pawn_prev = board.get_previous_state(Position(row=board.last_row - 1, column=move_destination.column))
+                if isinstance(captured_pawn_prev, Pawn) and own_pawn.color != captured_pawn_prev.color:
+                    return True, captured_pawn_position
+            elif own_pawn.color == Color.WHITE and move_origin.row == 3 and move_destination.row == move_origin.row - 1:
+                captured_pawn_prev = board.get_previous_state(Position(row=1, column=move_destination.column))
+                if isinstance(captured_pawn_prev, Pawn) and own_pawn.color != captured_pawn_prev.color:
+                    print(captured_pawn_position)
+                    return True, captured_pawn_position
     return False, None

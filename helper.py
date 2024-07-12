@@ -1,6 +1,3 @@
-# Draw a board square for the specified column/row
-import copy
-
 import pygame
 
 from board import Position
