@@ -179,7 +179,6 @@ if __name__ == '__main__':
     selected_piece_pos = None
     rotated = False
     running = True
-    recalculate = False
 
     threatened_positions = set()
     threatened_positions_with_relation_possibility = set()
