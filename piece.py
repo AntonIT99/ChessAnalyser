@@ -137,11 +137,6 @@ class King(Piece):
                 if board.get(move) is None or board.get(move).color != self.color:
                     moves.append((move, is_capture_move))
 
-        for position in board.positions:
-            if isinstance(board.get(position), Rook) and board.get(position).color == self.color:
-                if can_castle(board, pos, position):
-                    moves.append((King.get_castling_move(board, pos, position), False))
-
         return moves
 
     @classmethod
@@ -157,6 +152,11 @@ class King(Piece):
             future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
             if not future_board.get(move).is_currently_threatened(future_board, move):
                 legal_moves.append((move, is_capture_move))
+
+        for position in board.positions:
+            if isinstance(board.get(position), Rook) and board.get(position).color == self.color:
+                if can_castle(board, pos, position):
+                    legal_moves.append((King.get_castling_move(board, pos, position), False))
 
         return legal_moves
 
