@@ -2,8 +2,9 @@
 -res / --res <window_width>
 
 # Color Scheme
-🟦 Safe move  
-🟩 Safe capture move  
+🔷 Safe move
+🟦 Recommended move (puts the adversary into an unsafe position without retaliation possibility)
+🟩 Safe capture move
 🟥 Unsafe move or capture move  
 🟪 Unsafe move or capture move with retaliation possibility  
 🟧 Unsafe position  

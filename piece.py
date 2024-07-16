@@ -423,6 +423,5 @@ def en_passant(board, move_origin: Position, move_destination: Position) -> (boo
             elif own_pawn.color == Color.WHITE and move_origin.row == 3 and move_destination.row == move_origin.row - 1:
                 captured_pawn_prev = board.get_previous_state(Position(row=1, column=move_destination.column))
                 if isinstance(captured_pawn_prev, Pawn) and own_pawn.color != captured_pawn_prev.color:
-                    print(captured_pawn_position)
                     return True, captured_pawn_position
     return False, None

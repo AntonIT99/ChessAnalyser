@@ -34,6 +34,7 @@ def calculate_positions_and_moves():
     threatened_positions.clear()
     threatened_positions_with_relation_possibility.clear()
     safe_moves.clear()
+    recommended_moves.clear()
     safe_capture_moves.clear()
     unsafe_moves.clear()
     unsafe_moves_with_relation_possibility.clear()
@@ -42,20 +43,26 @@ def calculate_positions_and_moves():
 
     if selected_piece_pos is not None:
         selected_piece = board.get(selected_piece_pos)
-        for move, is_capture_move in selected_piece.get_moves(board, selected_piece_pos):
-            checkmate, stalemate = check_checkmate_and_stalemate(move)
+        selected_piece_moves = selected_piece.get_moves(board, selected_piece_pos)
+        selected_piece_unsafe_moves = selected_piece.get_unsafe_moves(board, selected_piece_pos)
+
+        for move, is_capture_move in selected_piece_moves:
+            checkmate, stalemate = check_checkmate_and_stalemate(selected_piece_pos, move)
             if checkmate:
                 checkmate_moves.add(move)
             elif stalemate:
                 stalemate_moves.add(move)
             elif is_capture_move:
                 safe_capture_moves.add(move)
-            else:
-                safe_moves.add(move)
+            elif move not in [unsafe_move for unsafe_move, opponent_origin in selected_piece_unsafe_moves]:
+                if is_recommended_move(board, selected_piece_pos, move):
+                    recommended_moves.add(move)
+                else:
+                    safe_moves.add(move)
 
         # Unsafe moves are forbidden for Kings
         if not isinstance(selected_piece, King):
-            for unsafe_move, opponent_origin in selected_piece.get_unsafe_moves(board, selected_piece_pos):
+            for unsafe_move, opponent_origin in selected_piece_unsafe_moves:
                 # Simulate the dangerous move
                 future_board = board.simulate_future_board(move_origin=selected_piece_pos, move_destination=unsafe_move)
                 # Simulate the opponent capturing the moved piece
@@ -70,42 +77,74 @@ def calculate_positions_and_moves():
 
     for pos in board.positions:
         if board.get(pos) is not None:
-            for capture_move in board.get(pos).get_capture_moves(board, pos):
-                future_board = board.simulate_future_board(move_origin=pos, move_destination=capture_move)
-                captured_piece = board.get(capture_move)
-                opponent_piece = future_board.get(capture_move)
+            piece = board.get(pos)
+            piece_capture_moves = piece.get_capture_moves(board, pos)
+
+            for capture_move in piece_capture_moves:
                 is_en_passant, captured_piece_position = en_passant(board, pos, capture_move)
                 warning = captured_piece_position if is_en_passant else capture_move
-                # Opponent would be exposed to a retaliation (only if the captured piece is not a King otherwise it ends there)
-                if not isinstance(captured_piece, King) and opponent_piece.is_currently_threatened(future_board, capture_move):
+                if capture_move_has_retaliation_possibility(board, pos, capture_move):
                     threatened_positions_with_relation_possibility.add(warning)
-                # Opponent could capture safely
                 else:
                     threatened_positions.add(warning)
 
+            # Show which pieces can do interesting moves, if no piece is selected
+            if not selected_piece_pos:
+                piece_moves = piece.get_moves(board, pos)
+                for move, capture_move in piece_moves:
+                    checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
+                    if checkmate:
+                        checkmate_moves.add(pos)
+                    elif stalemate:
+                        stalemate_moves.add(pos)
 
-def draw_moves():
+
+def capture_move_has_retaliation_possibility(current_board, pos, capture_move):
+    future_board = current_board.simulate_future_board(move_origin=pos, move_destination=capture_move)
+    captured_piece = current_board.get(capture_move)
+    opponent_piece = future_board.get(capture_move)
+    # Opponent would be exposed to a retaliation only if the captured piece is not a King otherwise it ends there
+    return not isinstance(captured_piece, King) and opponent_piece.is_currently_threatened(future_board, capture_move)
+
+
+def is_recommended_move(current_board, pos, safe_move):
+    future_board = current_board.simulate_future_board(move_origin=pos, move_destination=safe_move)
+    future_piece = future_board.get(safe_move)
+    for capture_move in future_piece.get_capture_moves(future_board, safe_move):
+        if not capture_move_has_retaliation_possibility(future_board, safe_move, capture_move):
+            return True
+    return False
+
+
+def draw_positions_and_moves():
+    for warning in threatened_positions:
+        draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for warning in threatened_positions_with_relation_possibility:
+        draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+
     for move in safe_moves:
         draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for move in recommended_moves:
+        draw_outline_on_square(move.column, move.row, Color.CYAN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in safe_capture_moves:
         draw_outline_on_square(move.column, move.row, Color.GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in unsafe_moves:
         draw_outline_on_square(move.column, move.row, Color.RED, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in unsafe_moves_with_relation_possibility:
         draw_outline_on_square(move.column, move.row, Color.MAGENTA, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for move in checkmate_moves:
-        draw_outline_on_square(move.column, move.row, Color.WHITE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in stalemate_moves:
         draw_outline_on_square(move.column, move.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for move in checkmate_moves:
+        draw_outline_on_square(move.column, move.row, Color.WHITE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
 
-def check_checkmate_and_stalemate(move):
-    future_board = board.simulate_future_board(move_origin=selected_piece_pos, move_destination=move)
+def check_checkmate_and_stalemate(position, move):
+    future_board = board.simulate_future_board(move_origin=position, move_destination=move)
     has_legal_move = False
     adversary_king_pos = None
 
     for pos in future_board.positions:
-        if isinstance(future_board.get(pos), King) and future_board.get(pos).color != board.get(selected_piece_pos).color:
+        if isinstance(future_board.get(pos), King) and future_board.get(pos).color != board.get(position).color:
             adversary_king_pos = pos
 
     if adversary_king_pos is None:
@@ -114,7 +153,7 @@ def check_checkmate_and_stalemate(move):
     is_check = future_board.get(adversary_king_pos).is_currently_threatened(future_board, adversary_king_pos)
 
     for pos in future_board.positions:
-        if future_board.get(pos) is not None and future_board.get(pos).color != board.get(selected_piece_pos).color:
+        if future_board.get(pos) is not None and future_board.get(pos).color != board.get(position).color:
             if len(future_board.get(pos).get_moves(future_board, pos)) > 0:
                 has_legal_move = True
                 break
@@ -122,13 +161,6 @@ def check_checkmate_and_stalemate(move):
     is_checkmate = is_check and not has_legal_move
     is_stalemate = not is_check and not has_legal_move
     return is_checkmate, is_stalemate
-
-
-def draw_position_warnings():
-    for warning in threatened_positions:
-        draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions_with_relation_possibility:
-        draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
 
 def check_promotion(new_position):
@@ -183,6 +215,7 @@ if __name__ == '__main__':
     threatened_positions = set()
     threatened_positions_with_relation_possibility = set()
     safe_moves = set()
+    recommended_moves = set()
     safe_capture_moves = set()
     unsafe_moves = set()
     unsafe_moves_with_relation_possibility = set()
@@ -193,8 +226,7 @@ if __name__ == '__main__':
 
         draw_board()
         draw_pieces()
-        draw_position_warnings()
-        draw_moves()
+        draw_positions_and_moves()
 
         for event in pygame.event.get():
 
