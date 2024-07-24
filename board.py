@@ -84,6 +84,9 @@ class Board:
         self.__state = self.redo_stack.pop()
 
     def simulate_future_board(self, move_origin: Position, move_destination: Position):
-        future_board = Board(copy.deepcopy(self.__state))
+        future_board = self.copy()
         future_board.do_move(origin=move_origin, destination=move_destination)
         return future_board
+
+    def copy(self):
+        return Board(copy.deepcopy(self.__state))

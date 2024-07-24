@@ -5,10 +5,11 @@ from color import Color
 
 
 class Piece(ABC):
-    def __init__(self, color, symbol):
+    def __init__(self, color, symbol, value):
         self.color = color
         self.symbol = symbol
         self.has_moved = False
+        self.value = value
 
     def render(self, font):
         return font.render(self.symbol, True, self.color.value)
@@ -82,6 +83,12 @@ class Piece(ABC):
 
         return warnings
 
+    def can_move_to_position(self, board, origin: Position, destination: Position):
+        for move, is_capture_move in self.get_moves(board, origin):
+            if move == destination:
+                return True
+        return False
+
     def is_currently_threatened(self, board, pos: Position):
         for threat_position in board.positions:
             if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
@@ -90,6 +97,16 @@ class Piece(ABC):
                     if capture_move == pos:
                         return True
         return False
+
+    def get_threats_positions(self, board, pos: Position):
+        threats_positions = []
+        for threat_position in board.positions:
+            if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
+                opponent_piece = board.get(threat_position)
+                for capture_move in opponent_piece.get_capture_moves(board, threat_position):
+                    if capture_move == pos:
+                        threats_positions.append(threat_position)
+        return threats_positions
 
     def get_own_king_position(self, board):
         king_pos = None
@@ -108,7 +125,7 @@ class Piece(ABC):
 
 class King(Piece):
     def __init__(self, color):
-        super().__init__(color, "♚")
+        super().__init__(color, "♚", 1000)
 
     def is_currently_threatened(self, board, pos: Position):
         for threat_position in board.positions:
@@ -163,7 +180,7 @@ class King(Piece):
 
 class Queen(Piece):
     def __init__(self, color):
-        super().__init__(color, "♛")
+        super().__init__(color, "♛", 9)
 
     def get_moves_ignore_illegal(self, board, pos):
         moves = []
@@ -194,7 +211,7 @@ class Queen(Piece):
 
 class Bishop(Piece):
     def __init__(self, color):
-        super().__init__(color, "♝")
+        super().__init__(color, "♝", 3)
 
     def get_moves_ignore_illegal(self, board, pos):
         moves = []
@@ -222,7 +239,7 @@ class Bishop(Piece):
 
 class Knight(Piece):
     def __init__(self, color):
-        super().__init__(color, "♞")
+        super().__init__(color, "♞", 3)
 
     def get_moves_ignore_illegal(self, board, pos):
         moves = []
@@ -248,7 +265,7 @@ class Knight(Piece):
 
 class Rook(Piece):
     def __init__(self, color):
-        super().__init__(color, "♜")
+        super().__init__(color, "♜", 5)
 
     def get_moves_ignore_illegal(self, board, pos):
         moves = []
@@ -283,7 +300,7 @@ class Rook(Piece):
 
 class Pawn(Piece):
     def __init__(self, color):
-        super().__init__(color, "♟")
+        super().__init__(color, "♟", 1)
 
     @classmethod
     def promote(cls, board, position, new_type: str):

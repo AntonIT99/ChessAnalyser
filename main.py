@@ -32,7 +32,8 @@ def draw_pieces():
 
 def calculate_positions_and_moves():
     threatened_positions.clear()
-    threatened_positions_with_relation_possibility.clear()
+    threatened_positions_with_favorable_relation_possibility.clear()
+    threatened_positions_with_unfavorable_relation_possibility.clear()
     safe_moves.clear()
     recommended_moves.clear()
     safe_capture_moves.clear()
@@ -84,7 +85,16 @@ def calculate_positions_and_moves():
                 is_en_passant, captured_piece_position = en_passant(board, pos, capture_move)
                 warning = captured_piece_position if is_en_passant else capture_move
                 if capture_move_has_retaliation_possibility(board, pos, capture_move):
-                    threatened_positions_with_relation_possibility.add(warning)
+                    #if is_defender_retaliation_favorable(warning):
+                        #threatened_positions_with_relation_possibility.add(warning)
+                    #else:
+                        #threatened_positions.add(warning)
+                    white_threatened_value, black_threatened_value = calculate_retaliation(warning, board)
+                    color_defender = board.get(warning).color
+                    if (color_defender == Color.WHITE and white_threatened_value <= black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value <= white_threatened_value):
+                        threatened_positions_with_favorable_relation_possibility.add(warning)
+                    elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
+                        threatened_positions_with_unfavorable_relation_possibility.add(warning)
                 else:
                     threatened_positions.add(warning)
 
@@ -97,6 +107,44 @@ def calculate_positions_and_moves():
                         checkmate_moves.add(pos)
                     elif stalemate:
                         stalemate_moves.add(pos)
+
+
+def is_defender_retaliation_favorable(pos):
+    color_defender = board.get(pos).color
+    color_attacker = Color.WHITE if color_defender == Color.BLACK else Color.BLACK
+    attacking_values = []
+    defending_values = []
+    board_after_attack = board.copy()
+    board_after_attack.set(pos, Pawn(color_attacker))
+
+    for position in board.positions:
+        piece = board.get(position)
+        if piece is not None:
+            if piece.color == color_attacker and piece.can_move_to_position(board, origin=position, destination=pos):
+                attacking_values.append(piece.value)
+            elif piece.color == color_defender and piece.can_move_to_position(board_after_attack, origin=position, destination=pos):
+                defending_values.append(piece.value)
+    attacking_values.sort()
+    defending_values.sort()
+    attacker_lost_pieces = min(len(attacking_values), len(defending_values))
+    defender_lost_pieces = min(len(attacking_values) - 1, len(defending_values))
+    value_of_lost_pieces_attacker = sum(attacking_values[:attacker_lost_pieces])
+    value_of_lost_pieces_defender = sum(defending_values[:defender_lost_pieces]) + board.get(pos).value
+    return value_of_lost_pieces_defender <= value_of_lost_pieces_attacker
+
+
+def calculate_retaliation(pos, current_board, lost_pieces_value_white=0, lost_pieces_value_black=0):
+    threatened_piece = current_board.get(pos)
+    threats = threatened_piece.get_threats_positions(current_board, pos)
+    if len(threats) > 0:
+        if threatened_piece.color == Color.WHITE:
+            lost_pieces_value_white += threatened_piece.value
+        else:
+            lost_pieces_value_black += threatened_piece.value
+    for threat_pos in threats:
+        future_board = current_board.simulate_future_board(move_origin=threat_pos, move_destination=pos)
+        lost_pieces_value_white, lost_pieces_value_black = calculate_retaliation(pos, future_board, lost_pieces_value_white, lost_pieces_value_black)
+    return lost_pieces_value_white, lost_pieces_value_black
 
 
 def capture_move_has_retaliation_possibility(current_board, pos, capture_move):
@@ -119,8 +167,10 @@ def is_recommended_move(current_board, pos, safe_move):
 def draw_positions_and_moves():
     for warning in threatened_positions:
         draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions_with_relation_possibility:
+    for warning in threatened_positions_with_favorable_relation_possibility:
         draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for warning in threatened_positions_with_unfavorable_relation_possibility:
+        draw_outline_on_square(warning.column, warning.row, Color.ORANGE_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
     for move in safe_moves:
         draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
@@ -213,7 +263,8 @@ if __name__ == '__main__':
     running = True
 
     threatened_positions = set()
-    threatened_positions_with_relation_possibility = set()
+    threatened_positions_with_favorable_relation_possibility = set()
+    threatened_positions_with_unfavorable_relation_possibility = set()
     safe_moves = set()
     recommended_moves = set()
     safe_capture_moves = set()
