@@ -1,4 +1,5 @@
 import argparse
+import concurrent
 import os
 import sys
 import time
@@ -267,6 +268,7 @@ if __name__ == '__main__':
     selected_piece_pos = None
     rotated = False
     running = True
+    future = None
 
     threatened_positions = set()
     threatened_positions_with_favorable_relation_possibility = set()
@@ -307,7 +309,8 @@ if __name__ == '__main__':
                     selected_piece_pos = None
 
             if event.type == KEYDOWN or event.type == MOUSEBUTTONDOWN or event.type == MOUSEBUTTONUP:
-                calculate_positions_and_moves()
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    future = executor.submit(calculate_positions_and_moves)
 
         pygame.display.flip()
 
