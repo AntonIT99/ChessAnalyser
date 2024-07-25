@@ -113,11 +113,12 @@ def add_position_warnings_and_interesting_moves(pos):
         elif stalemate:
             stalemate_moves.add(pos)
 
-    if board.get(pos) is not None:
-        process_multithreading_for(process_capture_move, board.get(pos).get_capture_moves(board, pos))
+    piece = board.get(pos)
+    if piece is not None:
+        process_multithreading_for(process_capture_move, piece.get_capture_moves(board, pos))
         # Show which pieces can do interesting moves, if no piece is selected
         if not selected_piece_pos:
-            process_multithreading_for(process_interesting_move, [move for move, capture_move in board.get(pos).get_moves(board, pos)])
+            process_multithreading_for(process_interesting_move, [move for move, capture_move in piece.get_moves(board, pos)])
 
 
 def is_defender_retaliation_favorable(pos):
@@ -171,9 +172,10 @@ def capture_move_has_retaliation_possibility(current_board, pos, capture_move):
 def is_recommended_move(current_board, pos, safe_move):
     future_board = current_board.simulate_future_board(move_origin=pos, move_destination=safe_move)
     future_piece = future_board.get(safe_move)
-    for capture_move in future_piece.get_capture_moves(future_board, safe_move):
-        if not capture_move_has_retaliation_possibility(future_board, safe_move, capture_move):
-            return True
+    if future_piece is not None:
+        for capture_move in future_piece.get_capture_moves(future_board, safe_move):
+            if not capture_move_has_retaliation_possibility(future_board, safe_move, capture_move):
+                return True
     return False
 
 
@@ -207,6 +209,7 @@ def check_checkmate_and_stalemate(position, move):
     future_board = board.simulate_future_board(move_origin=position, move_destination=move)
     has_legal_move = False
     adversary_king_pos = None
+    is_check = False
 
     for pos in future_board.positions:
         if isinstance(future_board.get(pos), King) and board.get(position) is not None and future_board.get(pos).color != board.get(position).color:
@@ -215,7 +218,8 @@ def check_checkmate_and_stalemate(position, move):
     if adversary_king_pos is None:
         return False, False
 
-    is_check = future_board.get(adversary_king_pos).is_currently_threatened(future_board, adversary_king_pos)
+    if future_board.get(adversary_king_pos) is not None:
+        is_check = future_board.get(adversary_king_pos).is_currently_threatened(future_board, adversary_king_pos)
 
     for pos in future_board.positions:
         if future_board.get(pos) is not None and board.get(position) is not None and future_board.get(pos).color != board.get(position).color:
