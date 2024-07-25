@@ -115,9 +115,9 @@ def add_position_warnings_and_interesting_moves(pos):
 
     if board.get(pos) is not None:
         process_multithreading_for(process_capture_move, board.get(pos).get_capture_moves(board, pos))
-    # Show which pieces can do interesting moves, if no piece is selected
-    if not selected_piece_pos:
-        process_multithreading_for(process_interesting_move, [move for move, capture_move in board.get(pos).get_moves(board, pos)])
+        # Show which pieces can do interesting moves, if no piece is selected
+        if not selected_piece_pos:
+            process_multithreading_for(process_interesting_move, [move for move, capture_move in board.get(pos).get_moves(board, pos)])
 
 
 def is_defender_retaliation_favorable(pos):
@@ -209,7 +209,7 @@ def check_checkmate_and_stalemate(position, move):
     adversary_king_pos = None
 
     for pos in future_board.positions:
-        if isinstance(future_board.get(pos), King) and future_board.get(pos).color != board.get(position).color:
+        if isinstance(future_board.get(pos), King) and board.get(position) is not None and future_board.get(pos).color != board.get(position).color:
             adversary_king_pos = pos
 
     if adversary_king_pos is None:
