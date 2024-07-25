@@ -1,5 +1,7 @@
 import argparse
 import os
+import time
+from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import pygame
 import sys
@@ -76,37 +78,64 @@ def calculate_positions_and_moves():
                 else:
                     unsafe_moves.add(unsafe_move)
 
-    for pos in board.positions:
-        if board.get(pos) is not None:
-            piece = board.get(pos)
-            piece_capture_moves = piece.get_capture_moves(board, pos)
+    start_time = time.time()
+    process_positions_for_warnings_and_interesting_moves()
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"Execution time process_positions_for_warnings_and_interesting_moves(): {execution_time} seconds")
 
-            for capture_move in piece_capture_moves:
-                is_en_passant, captured_piece_position = en_passant(board, pos, capture_move)
-                warning = captured_piece_position if is_en_passant else capture_move
-                if capture_move_has_retaliation_possibility(board, pos, capture_move):
-                    #if is_defender_retaliation_favorable(warning):
-                        #threatened_positions_with_relation_possibility.add(warning)
-                    #else:
-                        #threatened_positions.add(warning)
-                    white_threatened_value, black_threatened_value = calculate_retaliation(warning, board)
-                    color_defender = board.get(warning).color
-                    if (color_defender == Color.WHITE and white_threatened_value <= black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value <= white_threatened_value):
-                        threatened_positions_with_favorable_relation_possibility.add(warning)
-                    elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
-                        threatened_positions_with_unfavorable_relation_possibility.add(warning)
-                else:
-                    threatened_positions.add(warning)
 
-            # Show which pieces can do interesting moves, if no piece is selected
-            if not selected_piece_pos:
-                piece_moves = piece.get_moves(board, pos)
-                for move, capture_move in piece_moves:
-                    checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
-                    if checkmate:
-                        checkmate_moves.add(pos)
-                    elif stalemate:
-                        stalemate_moves.add(pos)
+def process_positions_for_warnings_and_interesting_moves():
+    with ThreadPoolExecutor(max_workers=4*os.cpu_count()) as executor:
+        futures = {executor.submit(add_position_warnings_and_interesting_moves, pos): pos for pos in board.positions if board.get(pos) is not None}
+
+        for future in as_completed(futures):
+            pos = futures[future]
+            try:
+                future.result()
+            except Exception as exc:
+                print(f'Position {pos} generated an exception: {exc}')
+
+
+def add_position_warnings_and_interesting_moves(pos):
+    piece = board.get(pos)
+    piece_capture_moves = piece.get_capture_moves(board, pos)
+
+    def process_capture_move(capture_move):
+        is_en_passant, captured_piece_position = en_passant(board, pos, capture_move)
+        warning = captured_piece_position if is_en_passant else capture_move
+        if capture_move_has_retaliation_possibility(board, pos, capture_move):
+            # if is_defender_retaliation_favorable(warning):
+            #   threatened_positions_with_relation_possibility.add(warning)
+            # else:
+            #   threatened_positions.add(warning)
+            white_threatened_value, black_threatened_value = calculate_retaliation(warning, board)
+            color_defender = board.get(warning).color
+            if (color_defender == Color.WHITE and white_threatened_value <= black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value <= white_threatened_value):
+                threatened_positions_with_favorable_relation_possibility.add(warning)
+            elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
+                threatened_positions_with_unfavorable_relation_possibility.add(warning)
+        else:
+            threatened_positions.add(warning)
+
+    with ThreadPoolExecutor(max_workers=4 * os.cpu_count()) as inner_executor:
+        inner_futures = [inner_executor.submit(process_capture_move, capture_move) for capture_move in piece_capture_moves]
+
+        for inner_future in as_completed(inner_futures):
+            try:
+                inner_future.result()
+            except Exception as exc:
+                print(f'Potential capture move generated an exception: {exc}')
+
+    # Show which pieces can do interesting moves, if no piece is selected
+    if not selected_piece_pos:
+        piece_moves = piece.get_moves(board, pos)
+        for move, capture_move in piece_moves:
+            checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
+            if checkmate:
+                checkmate_moves.add(pos)
+            elif stalemate:
+                stalemate_moves.add(pos)
 
 
 def is_defender_retaliation_favorable(pos):
