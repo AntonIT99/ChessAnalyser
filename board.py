@@ -43,7 +43,7 @@ class Board:
         is_castling, other_origin = castling(self, origin, destination)
 
         # if the destination is not the origin and the destination is not occupied or is occupied by a piece of the opposite color
-        if origin != destination and (self.get(origin) is not None or self.get(origin).color != self.get(destination).color):
+        if origin != destination and self.get(origin) is not None and (self.get(destination) is None or self.get(origin).color != self.get(destination).color):
 
             # Save the current state to the undo stack before changing it
             self.undo_stack.append(copy.deepcopy(self.__state))

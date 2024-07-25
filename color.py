@@ -11,6 +11,7 @@ class Color(Enum):
     BLUE = (0, 0, 255)
     ORANGE = (255, 86, 0)
     ORANGE_YELLOW = (255, 171, 0)
+    GREEN_YELLOW = (171, 255, 0)
     YELLOW = (255, 255, 0)
     MAGENTA = (255, 0, 255)
     CYAN = (0, 255, 255)
