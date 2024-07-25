@@ -218,7 +218,7 @@ def check_checkmate_and_stalemate(position, move):
     is_check = future_board.get(adversary_king_pos).is_currently_threatened(future_board, adversary_king_pos)
 
     for pos in future_board.positions:
-        if future_board.get(pos) is not None and future_board.get(pos).color != board.get(position).color:
+        if future_board.get(pos) is not None and board.get(position) is not None and future_board.get(pos).color != board.get(position).color:
             if len(future_board.get(pos).get_moves(future_board, pos)) > 0:
                 has_legal_move = True
                 break
