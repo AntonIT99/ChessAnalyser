@@ -44,12 +44,14 @@ def calculate_positions_and_moves():
     stalemate_moves.clear()
 
     if selected_piece_pos is not None:
-        selected_piece = board.get(selected_piece_pos)
-        selected_piece_moves = selected_piece.get_moves(board, selected_piece_pos)
-        selected_piece_unsafe_moves = selected_piece.get_unsafe_moves(board, selected_piece_pos)
+        # use a deep copy of the selected position since it can be changed by the main thread
+        selected_piece_position = Position.copy(selected_piece_pos)
+        selected_piece = board.get(selected_piece_position)
+        selected_piece_moves = selected_piece.get_moves(board, selected_piece_position)
+        selected_piece_unsafe_moves = selected_piece.get_unsafe_moves(board, selected_piece_position)
 
         for move, is_capture_move in selected_piece_moves:
-            checkmate, stalemate = check_checkmate_and_stalemate(selected_piece_pos, move)
+            checkmate, stalemate = check_checkmate_and_stalemate(selected_piece_position, move)
             if checkmate:
                 checkmate_moves.add(move)
             elif stalemate:
@@ -57,7 +59,7 @@ def calculate_positions_and_moves():
             elif is_capture_move:
                 safe_capture_moves.add(move)
             elif move not in [unsafe_move for unsafe_move, opponent_origin in selected_piece_unsafe_moves]:
-                if is_recommended_move(board, selected_piece_pos, move):
+                if is_recommended_move(board, selected_piece_position, move):
                     recommended_moves.add(move)
                 else:
                     safe_moves.add(move)
@@ -66,7 +68,7 @@ def calculate_positions_and_moves():
         if not isinstance(selected_piece, King):
             for unsafe_move, opponent_origin in selected_piece_unsafe_moves:
                 # Simulate the dangerous move
-                future_board = board.simulate_future_board(move_origin=selected_piece_pos, move_destination=unsafe_move)
+                future_board = board.simulate_future_board(move_origin=selected_piece_position, move_destination=unsafe_move)
                 # Simulate the opponent capturing the moved piece
                 future_board = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=unsafe_move)
                 opponent_piece = future_board.get(unsafe_move)
@@ -77,11 +79,7 @@ def calculate_positions_and_moves():
                 else:
                     unsafe_moves.add(unsafe_move)
 
-    start_time = time.time()
     process_multithreading(add_position_warnings_and_interesting_moves, [pos for pos in board.positions if board.get(pos) is not None])
-    end_time = time.time()
-    execution_time = end_time - start_time
-    print(f"Execution time process_positions_for_warnings_and_interesting_moves(): {execution_time} seconds")
 
 
 def add_position_warnings_and_interesting_moves(pos):
@@ -95,11 +93,13 @@ def add_position_warnings_and_interesting_moves(pos):
             # else:
             #   threatened_positions.add(warning)
             white_threatened_value, black_threatened_value = calculate_retaliation(warning, board)
-            color_defender = board.get(warning).color
-            if (color_defender == Color.WHITE and white_threatened_value <= black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value <= white_threatened_value):
-                threatened_positions_with_favorable_relation_possibility.add(warning)
-            elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
-                threatened_positions_with_unfavorable_relation_possibility.add(warning)
+            defender = board.get(warning)
+            if defender is not None:
+                color_defender = defender.color
+                if (color_defender == Color.WHITE and white_threatened_value <= black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value <= white_threatened_value):
+                    threatened_positions_with_favorable_relation_possibility.add(warning)
+                elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
+                    threatened_positions_with_unfavorable_relation_possibility.add(warning)
         else:
             threatened_positions.add(warning)
 
@@ -281,38 +281,40 @@ if __name__ == '__main__':
     checkmate_moves = set()
     stalemate_moves = set()
 
-    while running:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+        while running:
 
-        draw_board()
-        draw_pieces()
-        draw_positions_and_moves()
+            draw_board()
+            draw_pieces()
+            draw_positions_and_moves()
 
-        for event in pygame.event.get():
+            for event in pygame.event.get():
 
-            if event.type == QUIT:
-                running = False
-            elif event.type == KEYDOWN:
-                if event.key == K_BACKSPACE:
-                    board.undo()
-                elif event.key == K_RETURN:
-                    board.redo()
-                elif event.key == K_LSHIFT:
-                    rotated = not rotated
-            # Mouse events
-            else:
-                mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE, rotated)
-                if event.type == MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
-                    selected_piece_pos = Position.copy(mouse_pos)
-                elif event.type == MOUSEBUTTONUP and selected_piece_pos is not None:
-                    board.do_move(origin=selected_piece_pos, destination=mouse_pos)
-                    check_promotion(mouse_pos)
-                    selected_piece_pos = None
+                if event.type == QUIT:
+                    running = False
+                elif event.type == KEYDOWN:
+                    if event.key == K_BACKSPACE:
+                        board.undo()
+                    elif event.key == K_RETURN:
+                        board.redo()
+                    elif event.key == K_LSHIFT:
+                        rotated = not rotated
+                # Mouse events
+                else:
+                    mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE, rotated)
+                    if event.type == MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
+                        selected_piece_pos = Position.copy(mouse_pos)
+                    elif event.type == MOUSEBUTTONUP and selected_piece_pos is not None:
+                        board.do_move(origin=selected_piece_pos, destination=mouse_pos)
+                        check_promotion(mouse_pos)
+                        selected_piece_pos = None
 
-            if event.type == KEYDOWN or event.type == MOUSEBUTTONDOWN or event.type == MOUSEBUTTONUP:
-                with concurrent.futures.ThreadPoolExecutor() as executor:
+                if event.type == KEYDOWN or event.type == MOUSEBUTTONDOWN or event.type == MOUSEBUTTONUP:
+                    if future is not None:
+                        future.result()
                     future = executor.submit(calculate_positions_and_moves)
 
-        pygame.display.flip()
+            pygame.display.flip()
 
     # Exit
     pygame.quit()
