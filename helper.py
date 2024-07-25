@@ -1,3 +1,6 @@
+import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 import pygame
 
 from board import Position
@@ -45,3 +48,14 @@ def get_square_under_mouse(rows, columns, square_size, rotated) -> Position:
 
 def clamp(value, minimum, maximum):
     return max(minimum, min(value, maximum))
+
+
+def process_multithreading(function, for_each_list):
+    with ThreadPoolExecutor(max_workers=4*os.cpu_count()) as executor:
+        futures = [executor.submit(function, element) for element in for_each_list]
+
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as exc:
+                print(f'Function {function.__name__} generated an exception: {exc}')

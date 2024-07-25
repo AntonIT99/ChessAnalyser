@@ -1,18 +1,16 @@
 import argparse
 import os
+import sys
 import time
-from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import pygame
-import sys
-
 from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN, K_LSHIFT, MOUSEBUTTONUP
 
-from position import Position
 from board import Board
 from color import Color
-from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size
+from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size, process_multithreading
 from piece import Rook, Knight, Bishop, Pawn, Queen, King, en_passant
+from position import Position
 
 
 def draw_board():
@@ -79,27 +77,13 @@ def calculate_positions_and_moves():
                     unsafe_moves.add(unsafe_move)
 
     start_time = time.time()
-    process_positions_for_warnings_and_interesting_moves()
+    process_multithreading(add_position_warnings_and_interesting_moves, [pos for pos in board.positions if board.get(pos) is not None])
     end_time = time.time()
     execution_time = end_time - start_time
     print(f"Execution time process_positions_for_warnings_and_interesting_moves(): {execution_time} seconds")
 
 
-def process_positions_for_warnings_and_interesting_moves():
-    with ThreadPoolExecutor(max_workers=4*os.cpu_count()) as executor:
-        futures = {executor.submit(add_position_warnings_and_interesting_moves, pos): pos for pos in board.positions if board.get(pos) is not None}
-
-        for future in as_completed(futures):
-            pos = futures[future]
-            try:
-                future.result()
-            except Exception as exc:
-                print(f'Position {pos} generated an exception: {exc}')
-
-
 def add_position_warnings_and_interesting_moves(pos):
-    piece = board.get(pos)
-    piece_capture_moves = piece.get_capture_moves(board, pos)
 
     def process_capture_move(capture_move):
         is_en_passant, captured_piece_position = en_passant(board, pos, capture_move)
@@ -118,24 +102,17 @@ def add_position_warnings_and_interesting_moves(pos):
         else:
             threatened_positions.add(warning)
 
-    with ThreadPoolExecutor(max_workers=4 * os.cpu_count()) as inner_executor:
-        inner_futures = [inner_executor.submit(process_capture_move, capture_move) for capture_move in piece_capture_moves]
+    def process_interesting_move(move):
+        checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
+        if checkmate:
+            checkmate_moves.add(pos)
+        elif stalemate:
+            stalemate_moves.add(pos)
 
-        for inner_future in as_completed(inner_futures):
-            try:
-                inner_future.result()
-            except Exception as exc:
-                print(f'Potential capture move generated an exception: {exc}')
-
+    process_multithreading(process_capture_move, board.get(pos).get_capture_moves(board, pos))
     # Show which pieces can do interesting moves, if no piece is selected
     if not selected_piece_pos:
-        piece_moves = piece.get_moves(board, pos)
-        for move, capture_move in piece_moves:
-            checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
-            if checkmate:
-                checkmate_moves.add(pos)
-            elif stalemate:
-                stalemate_moves.add(pos)
+        process_multithreading(process_interesting_move, [move for move, capture_move in board.get(pos).get_moves(board, pos)])
 
 
 def is_defender_retaliation_favorable(pos):
