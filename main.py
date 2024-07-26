@@ -2,14 +2,13 @@ import argparse
 import concurrent
 import os
 import sys
-import time
 
 import pygame
 from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN, K_LSHIFT, MOUSEBUTTONUP
 
 from board import Board
 from color import Color
-from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size, process_multithreading_for
+from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size, do_foreach_multithreaded
 from piece import Rook, Knight, Bishop, Pawn, Queen, King, en_passant
 from position import Position
 
@@ -31,11 +30,7 @@ def draw_pieces():
         render_piece_centered(selected_piece, mouse.x, mouse.y, font, screen)
 
 
-def calculate_positions_and_moves():
-    threatened_positions.clear()
-    threatened_positions_with_favorable_relation_possibility.clear()
-    threatened_positions_with_neutral_relation_possibility.clear()
-    threatened_positions_with_unfavorable_relation_possibility.clear()
+def calculate_moves():
     safe_moves.clear()
     recommended_moves.clear()
     safe_capture_moves.clear()
@@ -80,20 +75,22 @@ def calculate_positions_and_moves():
                 else:
                     unsafe_moves.add(unsafe_move)
 
-    process_multithreading_for(add_position_warnings_and_interesting_moves, [pos for pos in board.positions if board.get(pos) is not None])
+    do_foreach_multithreaded(add_interesting_moves, [pos for pos in board.positions if board.get(pos) is not None])
 
 
-def add_position_warnings_and_interesting_moves(pos):
+def calculate_positions():
+    threatened_positions.clear()
+    threatened_positions_with_favorable_relation_possibility.clear()
+    threatened_positions_with_neutral_relation_possibility.clear()
+    threatened_positions_with_unfavorable_relation_possibility.clear()
+    do_foreach_multithreaded(add_position_warnings, [pos for pos in board.positions if board.get(pos) is not None])
 
+
+def add_position_warnings(pos):
     def process_capture_move(capture_move):
         is_en_passant, captured_piece_position = en_passant(board, pos, capture_move)
         warning = captured_piece_position if is_en_passant else capture_move
         if capture_move_has_retaliation_possibility(board, pos, capture_move):
-            # NO LONGER USED
-            # if is_defender_retaliation_favorable(warning):
-            #   threatened_positions_with_relation_possibility.add(warning)
-            # else:
-            #   threatened_positions.add(warning)
             white_threatened_value, black_threatened_value = calculate_retaliation(warning, board)
             if board.get(warning) is not None:
                 color_defender = board.get(warning).color
@@ -106,6 +103,12 @@ def add_position_warnings_and_interesting_moves(pos):
         else:
             threatened_positions.add(warning)
 
+    piece = board.get(pos)
+    if piece is not None:
+        do_foreach_multithreaded(process_capture_move, piece.get_capture_moves(board, pos))
+
+
+def add_interesting_moves(pos):
     def process_interesting_move(move):
         checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
         if checkmate:
@@ -114,35 +117,9 @@ def add_position_warnings_and_interesting_moves(pos):
             stalemate_moves.add(pos)
 
     piece = board.get(pos)
-    if piece is not None:
-        process_multithreading_for(process_capture_move, piece.get_capture_moves(board, pos))
+    if piece is not None and not selected_piece_pos:
         # Show which pieces can do interesting moves, if no piece is selected
-        if not selected_piece_pos:
-            process_multithreading_for(process_interesting_move, [move for move, capture_move in piece.get_moves(board, pos)])
-
-
-def is_defender_retaliation_favorable(pos):
-    color_defender = board.get(pos).color
-    color_attacker = Color.WHITE if color_defender == Color.BLACK else Color.BLACK
-    attacking_values = []
-    defending_values = []
-    board_after_attack = board.copy()
-    board_after_attack.set(pos, Pawn(color_attacker))
-
-    for position in board.positions:
-        piece = board.get(position)
-        if piece is not None:
-            if piece.color == color_attacker and piece.can_move_to_position(board, origin=position, destination=pos):
-                attacking_values.append(piece.value)
-            elif piece.color == color_defender and piece.can_move_to_position(board_after_attack, origin=position, destination=pos):
-                defending_values.append(piece.value)
-    attacking_values.sort()
-    defending_values.sort()
-    attacker_lost_pieces = min(len(attacking_values), len(defending_values))
-    defender_lost_pieces = min(len(attacking_values) - 1, len(defending_values))
-    value_of_lost_pieces_attacker = sum(attacking_values[:attacker_lost_pieces])
-    value_of_lost_pieces_defender = sum(defending_values[:defender_lost_pieces]) + board.get(pos).value
-    return value_of_lost_pieces_defender <= value_of_lost_pieces_attacker
+        do_foreach_multithreaded(process_interesting_move, [move for move, capture_move in piece.get_moves(board, pos)])
 
 
 def calculate_retaliation(pos, current_board, lost_pieces_value_white=0, lost_pieces_value_black=0):
@@ -280,7 +257,9 @@ if __name__ == '__main__':
     selected_piece_pos = None
     rotated = False
     running = True
-    future = None
+    future_calc_positions = None
+    future_calc_moves = None
+    has_moved = False
 
     threatened_positions = set()
     threatened_positions_with_favorable_relation_possibility = set()
@@ -305,6 +284,7 @@ if __name__ == '__main__':
 
                 if event.type == QUIT:
                     running = False
+                # Key events
                 elif event.type == KEYDOWN:
                     if event.key == K_BACKSPACE:
                         board.undo()
@@ -318,14 +298,23 @@ if __name__ == '__main__':
                     if event.type == MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
                         selected_piece_pos = Position.copy(mouse_pos)
                     elif event.type == MOUSEBUTTONUP and selected_piece_pos is not None:
-                        board.do_move(origin=selected_piece_pos, destination=mouse_pos)
-                        check_promotion(mouse_pos)
+                        has_moved = selected_piece_pos != mouse_pos
+                        if has_moved:
+                            board.do_move(origin=selected_piece_pos, destination=mouse_pos)
+                            check_promotion(mouse_pos)
                         selected_piece_pos = None
 
-                if event.type == KEYDOWN or event.type == MOUSEBUTTONDOWN or event.type == MOUSEBUTTONUP:
-                    if future is not None:
-                        future.result()
-                    future = executor.submit(calculate_positions_and_moves)
+                # For key press event and mouse button events -> recalculate moves
+                if event.type == KEYDOWN or event.type == MOUSEBUTTONUP or event.type == MOUSEBUTTONDOWN:
+                    if future_calc_moves is not None:
+                        future_calc_moves.result()
+                    future_calc_moves = executor.submit(calculate_moves)
+
+                # For key press event and mouse button release events with an actual move -> recalculate positions
+                if event.type == KEYDOWN or (event.type == MOUSEBUTTONUP and has_moved):
+                    if future_calc_positions is not None:
+                        future_calc_positions.result()
+                    future_calc_positions = executor.submit(calculate_positions)
 
             pygame.display.flip()
 

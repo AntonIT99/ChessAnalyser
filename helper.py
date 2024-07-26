@@ -50,7 +50,7 @@ def clamp(value, minimum, maximum):
     return max(minimum, min(value, maximum))
 
 
-def process_multithreading_for(function, for_each_list):
+def do_foreach_multithreaded(function, for_each_list):
     with ThreadPoolExecutor(max_workers=4*os.cpu_count()) as executor:
         futures = [executor.submit(function, element) for element in for_each_list]
 
