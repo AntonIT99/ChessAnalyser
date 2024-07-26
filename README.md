@@ -1,5 +1,5 @@
 # Program Args
--res / --res <window_width>
+-res / --resolution <window_width>
 
 # Color Scheme
 ![](https://placehold.co/16x16/0000ff/0000ff.png) Safe move  
