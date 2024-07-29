@@ -131,11 +131,10 @@ def calculate_retaliation(pos, current_board, lost_pieces_value_white=0, lost_pi
                 lost_pieces_value_white += threatened_piece.value
             else:
                 lost_pieces_value_black += threatened_piece.value
-        for threat_pos in threats:
-            future_board = current_board.simulate_future_board(move_origin=threat_pos, move_destination=pos)
-            lost_pieces_value_white, lost_pieces_value_black = calculate_retaliation(pos, future_board, lost_pieces_value_white, lost_pieces_value_black)
-        return lost_pieces_value_white, lost_pieces_value_black
-    return 0, 0
+            threat_pos_with_lowest_value = min(threats, key=lambda threat_pos: current_board.get(threat_pos).value)
+            future_board = current_board.simulate_future_board(move_origin=threat_pos_with_lowest_value, move_destination=pos)
+            return calculate_retaliation(pos, future_board, lost_pieces_value_white, lost_pieces_value_black)
+    return lost_pieces_value_white, lost_pieces_value_black
 
 
 def capture_move_has_retaliation_possibility(current_board, pos, capture_move):
@@ -159,12 +158,12 @@ def is_recommended_move(current_board, pos, safe_move):
 def draw_positions_and_moves():
     for warning in threatened_positions:
         draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions_with_favorable_relation_possibility:
-        draw_outline_on_square(warning.column, warning.row, Color.GREEN_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions_with_neutral_relation_possibility:
-        draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for warning in threatened_positions_with_unfavorable_relation_possibility:
         draw_outline_on_square(warning.column, warning.row, Color.ORANGE_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for warning in threatened_positions_with_neutral_relation_possibility:
+        draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for warning in threatened_positions_with_favorable_relation_possibility:
+        draw_outline_on_square(warning.column, warning.row, Color.GREEN_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
     for move in safe_moves:
         draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
