@@ -127,11 +127,12 @@ def calculate_retaliation(pos, current_board, lost_pieces_value_white=0, lost_pi
     if threatened_piece is not None:
         threats = threatened_piece.get_threats_positions(current_board, pos)
         if len(threats) > 0:
+            threat_pos_with_lowest_value = min(threats, key=lambda threat_pos: current_board.get(threat_pos).value)
             lost_pieces_value_white += (threatened_piece.value if threatened_piece.color == Color.WHITE else 0)
             lost_pieces_value_black += (threatened_piece.value if threatened_piece.color == Color.BLACK else 0)
-            threat_pos_with_lowest_value = min(threats, key=lambda threat_pos: current_board.get(threat_pos).value)
-            future_board = current_board.simulate_future_board(move_origin=threat_pos_with_lowest_value, move_destination=pos)
-            return calculate_retaliation(pos, future_board, lost_pieces_value_white, lost_pieces_value_black)
+            if threatened_piece.value <= current_board.get(threat_pos_with_lowest_value).value:
+                future_board = current_board.simulate_future_board(move_origin=threat_pos_with_lowest_value, move_destination=pos)
+                return calculate_retaliation(pos, future_board, lost_pieces_value_white, lost_pieces_value_black)
     return lost_pieces_value_white, lost_pieces_value_black
 
 
