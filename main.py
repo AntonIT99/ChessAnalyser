@@ -94,7 +94,7 @@ def add_position_warnings(pos):
             white_threatened_value, black_threatened_value = calculate_retaliation(warning, board)
             if board.get(warning) is not None:
                 color_defender = board.get(warning).color
-                if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value <= white_threatened_value):
+                if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
                     threatened_positions_with_favorable_relation_possibility.add(warning)
                 elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
                     threatened_positions_with_unfavorable_relation_possibility.add(warning)
@@ -127,10 +127,8 @@ def calculate_retaliation(pos, current_board, lost_pieces_value_white=0, lost_pi
     if threatened_piece is not None:
         threats = threatened_piece.get_threats_positions(current_board, pos)
         if len(threats) > 0:
-            if threatened_piece.color == Color.WHITE:
-                lost_pieces_value_white += threatened_piece.value
-            else:
-                lost_pieces_value_black += threatened_piece.value
+            lost_pieces_value_white += (threatened_piece.value if threatened_piece.color == Color.WHITE else 0)
+            lost_pieces_value_black += (threatened_piece.value if threatened_piece.color == Color.BLACK else 0)
             threat_pos_with_lowest_value = min(threats, key=lambda threat_pos: current_board.get(threat_pos).value)
             future_board = current_board.simulate_future_board(move_origin=threat_pos_with_lowest_value, move_destination=pos)
             return calculate_retaliation(pos, future_board, lost_pieces_value_white, lost_pieces_value_black)
