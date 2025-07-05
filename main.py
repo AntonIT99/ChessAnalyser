@@ -97,6 +97,7 @@ def calculate_moves():
                 # Exchange of pieces is favorable
                 if captured_piece is not None and selected_piece.value < captured_piece.value:
                     favorable_capture_moves.add(unsafe_move)
+                    capture_move_positions.add(selected_piece_position)
                 # Exchange of pieces is neutral or unfavorable
                 else:
                     unsafe_moves.add(unsafe_move)
@@ -112,6 +113,7 @@ def calculate_positions():
     threatened_positions_with_favorable_relation_possibility.clear()
     threatened_positions_with_neutral_relation_possibility.clear()
     threatened_positions_with_unfavorable_relation_possibility.clear()
+    capture_move_positions.clear()
     checkmate_positions.clear()
     stalemate_positions.clear()
     do_foreach_multithreaded(add_position_warnings, [pos for pos in board.positions if board.get(pos) is not None])
@@ -129,10 +131,12 @@ def add_position_warnings(pos):
                     threatened_positions_with_favorable_relation_possibility.add(warning)
                 elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
                     threatened_positions_with_unfavorable_relation_possibility.add(warning)
+                    capture_move_positions.add(pos)
                 elif (color_defender == Color.WHITE and white_threatened_value == black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value == white_threatened_value):
                     threatened_positions_with_neutral_relation_possibility.add(warning)
         else:
             threatened_positions.add(warning)
+            capture_move_positions.add(pos)
 
     piece = board.get(pos)
     if piece is not None:
@@ -202,6 +206,8 @@ def draw_positions_and_moves():
         draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for warning in threatened_positions_with_favorable_relation_possibility:
         draw_outline_on_square(warning.column, warning.row, Color.GREEN_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for pos in capture_move_positions:
+        draw_thin_outline_on_square(pos.column, pos.row, Color.GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for stalemate in stalemate_positions:
         draw_thin_outline_on_square(stalemate.column, stalemate.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for checkmate in checkmate_positions:
@@ -310,6 +316,9 @@ if __name__ == '__main__':
     threatened_positions_with_favorable_relation_possibility = set()
     threatened_positions_with_neutral_relation_possibility = set()
     threatened_positions_with_unfavorable_relation_possibility = set()
+    capture_move_positions = set()
+    checkmate_positions = set()
+    stalemate_positions = set()
     safe_moves = set()
     recommended_moves = set()
     favorable_capture_moves = set()
@@ -319,8 +328,6 @@ if __name__ == '__main__':
     unsafe_moves_with_unfavorable_relation_possibility = set()
     checkmate_moves = set()
     stalemate_moves = set()
-    checkmate_positions = set()
-    stalemate_positions = set()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         while running:
