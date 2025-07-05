@@ -96,18 +96,24 @@ class Piece(ABC):
             if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
                 opponent_piece = board.get(threat_position)
                 for capture_move in opponent_piece.get_capture_moves(board, threat_position):
-                    if capture_move == pos:
+                    is_en_passant, captured_position = en_passant(board, threat_position, capture_move)
+                    if (is_en_passant and captured_position == pos) or (not is_en_passant and capture_move == pos):
                         return True
         return False
 
-    def get_threats_positions(self, board, pos: Position):
+    """
+    Returns:
+    - List of Tuples (threat_origin, threat destination)
+    """
+    def get_threats(self, board, pos: Position):
         threats_positions = []
         for threat_position in board.positions:
-            if threat_position != pos and board.get(threat_position) is not None and board.get(threat_position).color != self.color:
-                opponent_piece = board.get(threat_position)
+            opponent_piece = board.get(threat_position)
+            if threat_position != pos and opponent_piece is not None and opponent_piece.color != self.color:
                 for capture_move in opponent_piece.get_capture_moves(board, threat_position):
-                    if capture_move == pos:
-                        threats_positions.append(threat_position)
+                    is_en_passant, captured_position = en_passant(board, threat_position, capture_move)
+                    if (is_en_passant and captured_position == pos) or (not is_en_passant and capture_move == pos):
+                        threats_positions.append((threat_position, capture_move))
         return threats_positions
 
     def get_own_king_position(self, board):
