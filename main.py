@@ -8,7 +8,7 @@ from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN,
 
 from board import Board
 from color import Color
-from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size, do_foreach_multithreaded
+from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size, do_foreach_multithreaded, draw_thin_outline_on_square
 from piece import Rook, Knight, Bishop, Pawn, Queen, King, en_passant
 from position import Position
 
@@ -83,6 +83,8 @@ def calculate_positions():
     threatened_positions_with_favorable_relation_possibility.clear()
     threatened_positions_with_neutral_relation_possibility.clear()
     threatened_positions_with_unfavorable_relation_possibility.clear()
+    checkmate_positions.clear()
+    stalemate_positions.clear()
     do_foreach_multithreaded(add_position_warnings, [pos for pos in board.positions if board.get(pos) is not None])
 
 
@@ -112,9 +114,9 @@ def add_interesting_moves(pos):
     def process_interesting_move(move):
         checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
         if checkmate:
-            checkmate_moves.add(pos)
+            checkmate_positions.add(pos)
         elif stalemate:
-            stalemate_moves.add(pos)
+            stalemate_positions.add(pos)
 
     piece = board.get(pos)
     if piece is not None and not selected_piece_pos:
@@ -163,6 +165,10 @@ def draw_positions_and_moves():
         draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for warning in threatened_positions_with_favorable_relation_possibility:
         draw_outline_on_square(warning.column, warning.row, Color.GREEN_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for stalemate in stalemate_positions:
+        draw_thin_outline_on_square(stalemate.column, stalemate.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for checkmate in checkmate_positions:
+        draw_thin_outline_on_square(checkmate.column, checkmate.row, Color.WHITE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
     for move in safe_moves:
         draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
@@ -270,6 +276,8 @@ if __name__ == '__main__':
     unsafe_moves_with_relation_possibility = set()
     checkmate_moves = set()
     stalemate_moves = set()
+    checkmate_positions = set()
+    stalemate_positions = set()
 
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         while running:

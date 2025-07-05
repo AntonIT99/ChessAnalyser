@@ -19,8 +19,14 @@ def draw_outline_on_square(col, row, color, screen, square_size, columns, rows, 
     if rotated:
         col = columns - 1 - col
         row = rows - 1 - row
-    pygame.draw.rect(screen, color.value, (col * square_size, row * square_size, square_size, square_size), int(0.05 * square_size))
+    pygame.draw.rect(screen, color.value, (col * square_size, row * square_size, square_size, square_size), int(0.06 * square_size))
 
+# Draw a thin outline for the specified column/row
+def draw_thin_outline_on_square(col, row, color, screen, square_size, columns, rows, rotated):
+    if rotated:
+        col = columns - 1 - col
+        row = rows - 1 - row
+    pygame.draw.rect(screen, color.value, (col * square_size, row * square_size, square_size, square_size), int(0.03 * square_size))
 
 # Render a piece by positioning its center
 def render_piece_centered(piece, pos_x, pos_y, font, screen):
