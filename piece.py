@@ -61,7 +61,7 @@ class Piece(ABC):
     def get_unsafe_moves(self, board, pos: Position):
         """
         Returns:
-        - List of Tuples (location_of_move_warning: Position, origin_of_threat: Position) representing unsafe moves.
+        - List of Tuples (location_of_move_warning: Position, origin_of_threat: Position, destination_of_threat: Position) representing unsafe moves.
         """
         warnings = []
 
@@ -75,7 +75,7 @@ class Piece(ABC):
                     for opponent_move in opponent_piece.get_capture_moves(future_board, opponent_pos):
                         is_en_passant, captured_position = en_passant(future_board, opponent_pos, opponent_move)
                         if move == opponent_move or (is_en_passant and move == captured_position):
-                            warnings.append((move, opponent_pos))
+                            warnings.append((move, opponent_pos, opponent_move))
                             warning_found = True
                             break
                     if warning_found:
@@ -444,3 +444,11 @@ def en_passant(board, move_origin: Position, move_destination: Position) -> (boo
                 if isinstance(captured_pawn_prev, Pawn) and own_pawn.color != captured_pawn_prev.color:
                     return True, captured_pawn_position
     return False, None
+
+
+def get_captured_piece(board, capture_move_origin: Position, capture_move_destination: Position):
+    captured_piece = board.get(capture_move_destination)
+    is_en_passant, captured_piece_pos = en_passant(board, capture_move_origin, capture_move_destination)
+    if is_en_passant:
+        captured_piece = board.get(captured_piece_pos)
+    return captured_piece
