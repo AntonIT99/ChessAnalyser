@@ -35,7 +35,9 @@ def calculate_moves():
     recommended_moves.clear()
     safe_capture_moves.clear()
     unsafe_moves.clear()
-    unsafe_moves_with_relation_possibility.clear()
+    unsafe_moves_with_neutral_relation_possibility.clear()
+    unsafe_moves_with_favorable_relation_possibility.clear()
+    unsafe_moves_with_unfavorable_relation_possibility.clear()
     checkmate_moves.clear()
     stalemate_moves.clear()
 
@@ -60,20 +62,24 @@ def calculate_moves():
                 else:
                     safe_moves.add(move)
 
-        # Unsafe moves are forbidden for Kings
-        if not isinstance(selected_piece, King):
-            for unsafe_move, opponent_origin in selected_piece_unsafe_moves:
-                # Simulate the dangerous move
-                future_board = board.simulate_future_board(move_origin=selected_piece_position, move_destination=unsafe_move)
-                # Simulate the opponent capturing the moved piece
-                future_board = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=unsafe_move)
-                opponent_piece = future_board.get(unsafe_move)
-                # Opponent would be exposed to a retaliation
-                if opponent_piece.is_currently_threatened(future_board, unsafe_move):
-                    unsafe_moves_with_relation_possibility.add(unsafe_move)
-                # Opponent could capture safely
-                else:
-                    unsafe_moves.add(unsafe_move)
+        for unsafe_move, opponent_origin in selected_piece_unsafe_moves:
+            # Simulate the dangerous move
+            future_board = board.simulate_future_board(move_origin=selected_piece_position, move_destination=unsafe_move)
+            # Simulate the opponent capturing the moved piece
+            future_board_2 = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=unsafe_move)
+            opponent_piece = future_board_2.get(unsafe_move)
+            # Opponent would be exposed to a retaliation
+            if opponent_piece.is_currently_threatened(future_board_2, unsafe_move):
+                white_threatened_value, black_threatened_value = calculate_retaliation(unsafe_move, future_board)
+                color_defender = future_board.get(unsafe_move).color
+                if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
+                    unsafe_moves_with_favorable_relation_possibility.add(unsafe_move)
+                elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
+                    unsafe_moves_with_unfavorable_relation_possibility.add(unsafe_move)
+                elif (color_defender == Color.WHITE and white_threatened_value == black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value == white_threatened_value):
+                    unsafe_moves_with_neutral_relation_possibility.add(unsafe_move)
+            else:
+                unsafe_moves.add(unsafe_move)
 
     do_foreach_multithreaded(add_interesting_moves, [pos for pos in board.positions if board.get(pos) is not None])
 
@@ -178,8 +184,12 @@ def draw_positions_and_moves():
         draw_outline_on_square(move.column, move.row, Color.GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in unsafe_moves:
         draw_outline_on_square(move.column, move.row, Color.RED, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for move in unsafe_moves_with_relation_possibility:
+    for move in unsafe_moves_with_neutral_relation_possibility:
         draw_outline_on_square(move.column, move.row, Color.MAGENTA, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for move in unsafe_moves_with_favorable_relation_possibility:
+        draw_outline_on_square(move.column, move.row, Color.MAGENTA_BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for move in unsafe_moves_with_unfavorable_relation_possibility:
+        draw_outline_on_square(move.column, move.row, Color.MAGENTA_RED, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in stalemate_moves:
         draw_outline_on_square(move.column, move.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in checkmate_moves:
@@ -273,7 +283,9 @@ if __name__ == '__main__':
     recommended_moves = set()
     safe_capture_moves = set()
     unsafe_moves = set()
-    unsafe_moves_with_relation_possibility = set()
+    unsafe_moves_with_neutral_relation_possibility = set()
+    unsafe_moves_with_favorable_relation_possibility = set()
+    unsafe_moves_with_unfavorable_relation_possibility = set()
     checkmate_moves = set()
     stalemate_moves = set()
     checkmate_positions = set()

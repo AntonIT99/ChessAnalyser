@@ -65,21 +65,23 @@ class Piece(ABC):
         """
         warnings = []
 
-        for move, is_capture_move in self.get_moves(board, pos):
-            warning_found = False
-            future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
-            for opponent_pos in self.__get_opponent_positions(future_board):
-                opponent_piece = future_board.get(opponent_pos)
-                for opponent_move in opponent_piece.get_capture_moves(future_board, opponent_pos):
-                    is_en_passant, captured_position = en_passant(future_board, opponent_pos, opponent_move)
-                    if move == opponent_move or (is_en_passant and move == captured_position):
-                        warnings.append((move, opponent_pos))
-                        warning_found = True
+        # Unsafe moves are forbidden for Kings
+        if not isinstance(self, King):
+            for move, is_capture_move in self.get_moves(board, pos):
+                warning_found = False
+                future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
+                for opponent_pos in self.__get_opponent_positions(future_board):
+                    opponent_piece = future_board.get(opponent_pos)
+                    for opponent_move in opponent_piece.get_capture_moves(future_board, opponent_pos):
+                        is_en_passant, captured_position = en_passant(future_board, opponent_pos, opponent_move)
+                        if move == opponent_move or (is_en_passant and move == captured_position):
+                            warnings.append((move, opponent_pos))
+                            warning_found = True
+                            break
+                    if warning_found:
                         break
                 if warning_found:
-                    break
-            if warning_found:
-                continue
+                    continue
 
         return warnings
 
