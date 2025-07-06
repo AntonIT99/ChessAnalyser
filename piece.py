@@ -452,9 +452,13 @@ def en_passant(board, move_origin: Position, move_destination: Position) -> (boo
     return False, None
 
 
-def get_captured_piece(board, capture_move_origin: Position, capture_move_destination: Position):
-    captured_piece = board.get(capture_move_destination)
+def get_captured_piece_position(board, capture_move_origin: Position, capture_move_destination: Position):
+    captured_piece_position = capture_move_destination
     is_en_passant, captured_piece_pos = en_passant(board, capture_move_origin, capture_move_destination)
     if is_en_passant:
-        captured_piece = board.get(captured_piece_pos)
-    return captured_piece
+        captured_piece_position = captured_piece_pos
+    return captured_piece_position
+
+
+def get_captured_piece(board, capture_move_origin: Position, capture_move_destination: Position):
+    return board.get(get_captured_piece_position(board, capture_move_origin, capture_move_destination))

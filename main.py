@@ -9,7 +9,7 @@ from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN,
 from board import Board
 from color import Color
 from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size, do_foreach_multithreaded, draw_thin_outline_on_square
-from piece import Rook, Knight, Bishop, Pawn, Queen, King, en_passant, get_captured_piece
+from piece import Rook, Knight, Bishop, Pawn, Queen, King, en_passant, get_captured_piece, get_captured_piece_position
 from position import Position
 
 
@@ -97,7 +97,6 @@ def calculate_moves():
                 # Exchange of pieces is favorable
                 if captured_piece is not None and selected_piece.value < captured_piece.value:
                     favorable_capture_moves.add(unsafe_move)
-                    capture_move_positions.add(selected_piece_position)
                 # Exchange of pieces is neutral or unfavorable
                 else:
                     unsafe_moves.add(unsafe_move)
@@ -121,8 +120,7 @@ def calculate_positions():
 
 def add_position_warnings(pos):
     def process_capture_move(capture_move):
-        is_en_passant, captured_piece_position = en_passant(board, pos, capture_move)
-        warning = captured_piece_position if is_en_passant else capture_move
+        warning = get_captured_piece_position(board, pos, capture_move)
         if capture_move_has_retaliation_possibility(board, pos, capture_move):
             white_threatened_value, black_threatened_value = calculate_retaliation(warning, board)
             if board.get(warning) is not None:
