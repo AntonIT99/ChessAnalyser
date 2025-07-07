@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Tuple, Optional
 
 from position import Position
 from color import Color
@@ -115,6 +116,17 @@ class Piece(ABC):
                     if (is_en_passant and captured_position == pos) or (not is_en_passant and capture_move == pos):
                         threats_positions.append((threat_position, capture_move))
         return threats_positions
+
+    """
+    Returns:
+    - Tuple (threat_origin, threat destination)
+    """
+    def get_threat_with_smallest_value(self, board, pos: Position) -> Optional[Tuple[Position, Position]]:
+        threats = self.get_threats(board, pos)
+        if len(threats) > 0:
+            return min(threats, key=lambda threat: board.get(threat[0]).value)
+        else:
+            return None
 
     def get_own_king_position(self, board):
         king_pos = None
