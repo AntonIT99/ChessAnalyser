@@ -32,7 +32,7 @@ def draw_pieces():
 
 def calculate_moves():
     safe_moves.clear()
-    recommended_moves.clear()
+    attack_moves.clear()
     favorable_capture_moves.clear()
     unsafe_moves.clear()
     unsafe_moves_with_neutral_relation_possibility.clear()
@@ -57,8 +57,8 @@ def calculate_moves():
             elif move not in [unsafe_move for unsafe_move, opponent_origin, opponent_dest in selected_piece_unsafe_moves]:
                 if is_capture_move:
                     favorable_capture_moves.add(move)
-                elif is_recommended_move(board, selected_piece_position, move):
-                    recommended_moves.add(move)
+                elif is_attack_move(board, selected_piece_position, move):
+                    attack_moves.add(move)
                 else:
                     safe_moves.add(move)
 
@@ -78,9 +78,9 @@ def calculate_moves():
                         # Capture Move
                         if (unsafe_move, True) in selected_piece_moves:
                             favorable_capture_moves.add(unsafe_move)
-                        # Recommended Move
-                        elif is_recommended_move(board, selected_piece_position, unsafe_move):
-                            recommended_moves.add(unsafe_move)
+                        # Attack Move
+                        elif is_attack_move(board, selected_piece_position, unsafe_move):
+                            attack_moves.add(unsafe_move)
                         else:
                             unsafe_moves_with_favorable_relation_possibility.add(unsafe_move)
                     # Unsafe Move with unfavorable retaliation
@@ -177,7 +177,7 @@ def capture_move_has_retaliation_possibility(current_board, position, capture_mo
     return not isinstance(captured_piece, King) and opponent_piece.is_currently_threatened(future_board, capture_move)
 
 
-def is_recommended_move(current_board, pos, safe_or_favorable_move):
+def is_attack_move(current_board, pos, safe_or_favorable_move):
     future_board = current_board.simulate_future_board(move_origin=pos, move_destination=safe_or_favorable_move)
     future_piece = future_board.get(safe_or_favorable_move)
     if future_piece is not None:
@@ -196,16 +196,16 @@ def is_recommended_move(current_board, pos, safe_or_favorable_move):
 
 
 def draw_positions_and_moves():
-    for warning in threatened_positions:
-        draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions_with_unfavorable_relation_possibility:
-        draw_outline_on_square(warning.column, warning.row, Color.ORANGE_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions_with_neutral_relation_possibility:
-        draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for warning in threatened_positions_with_favorable_relation_possibility:
         draw_outline_on_square(warning.column, warning.row, Color.GREEN_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for warning in threatened_positions_with_neutral_relation_possibility:
+        draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for warning in threatened_positions_with_unfavorable_relation_possibility:
+        draw_outline_on_square(warning.column, warning.row, Color.ORANGE_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for warning in threatened_positions:
+        draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for pos in capture_move_positions:
-        draw_thin_outline_on_square(pos.column, pos.row, Color.GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+        draw_thin_outline_on_square(pos.column, pos.row, Color.DARK_GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for stalemate in stalemate_positions:
         draw_thin_outline_on_square(stalemate.column, stalemate.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for checkmate in checkmate_positions:
@@ -213,7 +213,7 @@ def draw_positions_and_moves():
 
     for move in safe_moves:
         draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for move in recommended_moves:
+    for move in attack_moves:
         draw_outline_on_square(move.column, move.row, Color.CYAN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in favorable_capture_moves:
         draw_outline_on_square(move.column, move.row, Color.GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
@@ -318,7 +318,7 @@ if __name__ == '__main__':
     checkmate_positions = set()
     stalemate_positions = set()
     safe_moves = set()
-    recommended_moves = set()
+    attack_moves = set()
     favorable_capture_moves = set()
     unsafe_moves = set()
     unsafe_moves_with_neutral_relation_possibility = set()

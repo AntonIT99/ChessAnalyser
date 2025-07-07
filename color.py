@@ -8,6 +8,7 @@ class Color(Enum):
     LIGHT_BROWN = (222, 184, 135)
     RED = (255, 0, 0)
     GREEN = (0, 255, 0)
+    DARK_GREEN = (0, 127, 0)
     BLUE = (0, 0, 255)
     ORANGE = (255, 86, 0)
     ORANGE_YELLOW = (255, 171, 0)
