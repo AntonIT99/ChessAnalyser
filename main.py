@@ -2,6 +2,7 @@ import argparse
 import concurrent
 import os
 import sys
+from typing import Optional, Tuple
 
 import pygame
 from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN, K_LSHIFT, MOUSEBUTTONUP
@@ -9,7 +10,7 @@ from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN,
 from board import Board
 from color import Color
 from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size, do_foreach_multithreaded, draw_thin_outline_on_square
-from piece import Rook, Knight, Bishop, Pawn, Queen, King, en_passant, get_captured_piece, get_captured_piece_position
+from piece import Rook, Knight, Bishop, Pawn, Queen, King, en_passant, get_captured_piece, get_captured_piece_position, Piece
 from position import Position
 
 
@@ -70,8 +71,12 @@ def calculate_moves():
             opponent_piece = future_board_2.get(opponent_dest)
             # Unsafe Move with retaliation
             if opponent_piece.is_currently_threatened(future_board_2, opponent_dest):
-                white_threatened_value, black_threatened_value = calculate_retaliation(unsafe_move, future_board)
                 if future_board.get(unsafe_move) is not None:
+                    captured_piece = None
+                    # Handle Capture Move in relation calculation
+                    if (unsafe_move, True) in selected_piece_moves:
+                        captured_piece = get_captured_piece(board, selected_piece_position, unsafe_move)
+                    white_threatened_value, black_threatened_value = calculate_retaliation_with_capture(unsafe_move, future_board, captured_piece)
                     color_defender = future_board.get(unsafe_move).color
                     # Unsafe Move with favorable retaliation
                     if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
@@ -118,31 +123,34 @@ def calculate_positions():
     do_foreach_multithreaded(add_position_warnings, [pos for pos in board.positions if board.get(pos) is not None])
 
 
-def add_position_warnings(pos):
-    def process_capture_move(capture_move):
-        warning = get_captured_piece_position(board, pos, capture_move)
-        if capture_move_has_retaliation_possibility(board, pos, capture_move):
-            white_threatened_value, black_threatened_value = calculate_retaliation(warning, board)
-            if board.get(warning) is not None:
-                color_defender = board.get(warning).color
+def add_position_warnings(capturing_piece_pos: Position):
+    def process_capture_move(capture_move: Position):
+        threatened_piece_pos = get_captured_piece_position(board, capturing_piece_pos, capture_move)
+        threatened_piece = board.get(threatened_piece_pos)
+        if threatened_piece is not None:
+            if capture_move_has_retaliation_possibility(board, capturing_piece_pos, capture_move):
+                # Simulate the capture move
+                future_board = board.simulate_future_board(move_origin=capturing_piece_pos, move_destination=capture_move)
+                white_threatened_value, black_threatened_value = calculate_retaliation_with_capture(capture_move, future_board, threatened_piece)
+                color_defender = threatened_piece.color
                 if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
-                    threatened_positions_with_favorable_relation_possibility.add(warning)
+                    threatened_positions_with_favorable_relation_possibility.add(threatened_piece_pos)
                 elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
-                    threatened_positions_with_unfavorable_relation_possibility.add(warning)
-                    capture_move_positions.add(pos)
+                    threatened_positions_with_unfavorable_relation_possibility.add(threatened_piece_pos)
+                    capture_move_positions.add(capturing_piece_pos)
                 elif (color_defender == Color.WHITE and white_threatened_value == black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value == white_threatened_value):
-                    threatened_positions_with_neutral_relation_possibility.add(warning)
-        else:
-            threatened_positions.add(warning)
-            capture_move_positions.add(pos)
+                    threatened_positions_with_neutral_relation_possibility.add(threatened_piece_pos)
+            else:
+                threatened_positions.add(threatened_piece_pos)
+                capture_move_positions.add(capturing_piece_pos)
 
-    piece = board.get(pos)
-    if piece is not None:
-        do_foreach_multithreaded(process_capture_move, piece.get_capture_moves(board, pos))
+    capturing_piece = board.get(capturing_piece_pos)
+    if capturing_piece is not None:
+        do_foreach_multithreaded(process_capture_move, capturing_piece.get_capture_moves(board, capturing_piece_pos))
 
 
-def add_interesting_moves(pos):
-    def process_interesting_move(move):
+def add_interesting_moves(pos: Position):
+    def process_interesting_move(move: Position):
         checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
         if checkmate:
             checkmate_positions.add(pos)
@@ -155,17 +163,27 @@ def add_interesting_moves(pos):
         do_foreach_multithreaded(process_interesting_move, [move for move, capture_move in piece.get_moves(board, pos)])
 
 
-def calculate_retaliation(pos, current_board, lost_pieces_value_white=0, lost_pieces_value_black=0):
-    threatened_piece = current_board.get(pos)
+def calculate_retaliation_with_capture(threatened_piece_pos: Position, current_board: Board, previously_captured_piece: Optional[Piece]) -> Tuple[int, int]:
+    lost_pieces_value_white = 0
+    lost_pieces_value_black = 0
+    if previously_captured_piece is not None:
+        if previously_captured_piece.color == Color.WHITE:
+            lost_pieces_value_white = previously_captured_piece.value
+        elif previously_captured_piece.color == Color.BLACK:
+            lost_pieces_value_black = previously_captured_piece.value
+    return calculate_retaliation(threatened_piece_pos, current_board, lost_pieces_value_white, lost_pieces_value_black)
+
+
+def calculate_retaliation(threatened_piece_pos: Position, current_board: Board, lost_pieces_value_white=0, lost_pieces_value_black=0) -> Tuple[int, int]:
+    threatened_piece = current_board.get(threatened_piece_pos)
     if threatened_piece is not None:
-        threats = threatened_piece.get_threats(current_board, pos)
+        threats = threatened_piece.get_threats(current_board, threatened_piece_pos)
         if len(threats) > 0:
             lowest_value_threat_origin, lowest_value_threat_dest = min(threats, key=lambda threat: current_board.get(threat[0]).value)
             lost_pieces_value_white += (threatened_piece.value if threatened_piece.color == Color.WHITE else 0)
             lost_pieces_value_black += (threatened_piece.value if threatened_piece.color == Color.BLACK else 0)
-            if threatened_piece.value <= current_board.get(lowest_value_threat_origin).value:
-                future_board = current_board.simulate_future_board(move_origin=lowest_value_threat_origin, move_destination=lowest_value_threat_dest)
-                return calculate_retaliation(lowest_value_threat_dest, future_board, lost_pieces_value_white, lost_pieces_value_black)
+            future_board = current_board.simulate_future_board(move_origin=lowest_value_threat_origin, move_destination=lowest_value_threat_dest)
+            return calculate_retaliation(lowest_value_threat_dest, future_board, lost_pieces_value_white, lost_pieces_value_black)
     return lost_pieces_value_white, lost_pieces_value_black
 
 
@@ -196,20 +214,24 @@ def is_attack_move(current_board, pos, safe_or_favorable_move):
 
 
 def draw_positions_and_moves():
-    for warning in threatened_positions_with_favorable_relation_possibility:
-        draw_outline_on_square(warning.column, warning.row, Color.GREEN_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions_with_neutral_relation_possibility:
-        draw_outline_on_square(warning.column, warning.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions_with_unfavorable_relation_possibility:
-        draw_outline_on_square(warning.column, warning.row, Color.ORANGE_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for warning in threatened_positions:
-        draw_outline_on_square(warning.column, warning.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions_with_neutral_relation_possibility)
+    threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions_with_unfavorable_relation_possibility)
+    threatened_positions_with_neutral_relation_possibility.difference_update(threatened_positions_with_unfavorable_relation_possibility)
+
+    for pos in threatened_positions_with_favorable_relation_possibility:
+        draw_outline_on_square(pos.column, pos.row, Color.GREEN_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for pos in threatened_positions_with_neutral_relation_possibility:
+        draw_outline_on_square(pos.column, pos.row, Color.YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for pos in threatened_positions_with_unfavorable_relation_possibility:
+        draw_outline_on_square(pos.column, pos.row, Color.ORANGE_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for pos in threatened_positions:
+        draw_outline_on_square(pos.column, pos.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for pos in capture_move_positions:
         draw_thin_outline_on_square(pos.column, pos.row, Color.DARK_GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for stalemate in stalemate_positions:
-        draw_thin_outline_on_square(stalemate.column, stalemate.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for checkmate in checkmate_positions:
-        draw_thin_outline_on_square(checkmate.column, checkmate.row, Color.WHITE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for pos in stalemate_positions:
+        draw_thin_outline_on_square(pos.column, pos.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for pos in checkmate_positions:
+        draw_thin_outline_on_square(pos.column, pos.row, Color.WHITE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
     for move in safe_moves:
         draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
