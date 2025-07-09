@@ -64,7 +64,7 @@ class Piece(ABC):
         Returns:
         - List of Tuples (location_of_move_warning: Position, origin_of_threat: Position, destination_of_threat: Position) representing unsafe moves.
         """
-        warnings = []
+        unsafe_moves = []
 
         # Unsafe moves are forbidden for Kings
         if not isinstance(self, King):
@@ -76,7 +76,7 @@ class Piece(ABC):
                     for opponent_move in opponent_piece.get_capture_moves(future_board, opponent_pos):
                         is_en_passant, captured_position = en_passant(future_board, opponent_pos, opponent_move)
                         if move == opponent_move or (is_en_passant and move == captured_position):
-                            warnings.append((move, opponent_pos, opponent_move))
+                            unsafe_moves.append((move, opponent_pos, opponent_move))
                             warning_found = True
                             break
                     if warning_found:
@@ -84,7 +84,31 @@ class Piece(ABC):
                 if warning_found:
                     continue
 
-        return warnings
+        return unsafe_moves
+
+    def get_safe_moves(self, board, pos: Position):
+        """
+        Returns:
+        - List of Positions representing safe moves.
+        """
+        safe_moves = []
+
+        for move, is_capture_move in self.get_moves(board, pos):
+            warning_found = False
+            future_board = board.simulate_future_board(move_origin=pos, move_destination=move)
+            for opponent_pos in self.__get_opponent_positions(future_board):
+                opponent_piece = future_board.get(opponent_pos)
+                for opponent_move in opponent_piece.get_capture_moves(future_board, opponent_pos):
+                    is_en_passant, captured_position = en_passant(future_board, opponent_pos, opponent_move)
+                    if move == opponent_move or (is_en_passant and move == captured_position):
+                        warning_found = True
+                        break
+                if warning_found:
+                    break
+            if not warning_found:
+                safe_moves.append(move)
+
+        return safe_moves
 
     def can_move_to_position(self, board, origin: Position, destination: Position):
         for move, is_capture_move in self.get_moves(board, origin):

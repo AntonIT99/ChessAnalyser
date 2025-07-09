@@ -16,5 +16,6 @@ class Color(Enum):
     YELLOW = (255, 255, 0)
     MAGENTA = (255, 0, 255)
     CYAN = (0, 255, 255)
+    DARK_CYAN = (0, 127, 127)
     MAGENTA_BLUE = (86, 0, 255)
     MAGENTA_RED = (255, 0, 86)
