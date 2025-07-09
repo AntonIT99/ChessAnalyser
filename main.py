@@ -66,34 +66,48 @@ def calculate_moves():
         for unsafe_move, opponent_origin, opponent_dest in selected_piece_unsafe_moves:
             # Simulate the dangerous move
             future_board = board.simulate_future_board(move_origin=selected_piece_position, move_destination=unsafe_move)
-            if future_board.get(unsafe_move) is not None:
-                captured_piece = None
-                # Handle Capture Move in relation calculation
-                if (unsafe_move, True) in selected_piece_moves:
-                    captured_piece = get_captured_piece(board, selected_piece_position, unsafe_move)
-                white_threatened_value, black_threatened_value = calculate_retaliation_with_capture(unsafe_move, future_board, captured_piece)
-                color_defender = future_board.get(unsafe_move).color
-                # Unsafe Move with no retaliation
-                if (color_defender == Color.WHITE and (black_threatened_value == 0)) or (color_defender == Color.BLACK and white_threatened_value == 0):
-                    unsafe_moves.add(unsafe_move)
-                # Unsafe Move with favorable retaliation
-                elif (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
-                    # Capture Move
+            # Simulate the opponent capturing the moved piece
+            future_board_2 = future_board.simulate_future_board(move_origin=opponent_origin, move_destination=opponent_dest)
+            opponent_piece = future_board_2.get(opponent_dest)
+            # Unsafe Move with retaliation
+            if opponent_piece.is_currently_threatened(future_board_2, opponent_dest):
+                if future_board.get(unsafe_move) is not None:
+                    captured_piece = None
+                    # Handle Capture Move in relation calculation
                     if (unsafe_move, True) in selected_piece_moves:
-                        favorable_capture_moves.add(unsafe_move)
-                    # Attack Move
-                    elif is_attack_move(board, selected_piece_position, unsafe_move):
-                        attack_moves.add(unsafe_move)
-                    else:
-                        unsafe_moves_with_favorable_relation_possibility.add(unsafe_move)
-                # Unsafe Move with unfavorable retaliation
-                elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
-                    unsafe_moves_with_unfavorable_relation_possibility.add(unsafe_move)
-                # Unsafe Move with neutral retaliation
-                elif (color_defender == Color.WHITE and white_threatened_value == black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value == white_threatened_value):
-                    unsafe_moves_with_neutral_relation_possibility.add(unsafe_move)
-
-    do_foreach_multithreaded(add_interesting_moves, [pos for pos in board.positions if board.get(pos) is not None])
+                        captured_piece = get_captured_piece(board, selected_piece_position, unsafe_move)
+                    white_threatened_value, black_threatened_value = calculate_retaliation_with_capture(unsafe_move, future_board, captured_piece)
+                    color_defender = future_board.get(unsafe_move).color
+                    # Unsafe Move with favorable retaliation
+                    if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
+                        # Capture Move
+                        if (unsafe_move, True) in selected_piece_moves:
+                            favorable_capture_moves.add(unsafe_move)
+                        # Attack Move
+                        elif is_attack_move(board, selected_piece_position, unsafe_move):
+                            attack_moves.add(unsafe_move)
+                        else:
+                            unsafe_moves_with_favorable_relation_possibility.add(unsafe_move)
+                    # Unsafe Move with unfavorable retaliation
+                    elif (color_defender == Color.WHITE and white_threatened_value > black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value > white_threatened_value):
+                        unsafe_moves_with_unfavorable_relation_possibility.add(unsafe_move)
+                    # Unsafe Move with neutral retaliation
+                    elif (color_defender == Color.WHITE and white_threatened_value == black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value == white_threatened_value):
+                        unsafe_moves_with_neutral_relation_possibility.add(unsafe_move)
+                else:
+                    unsafe_moves.add(unsafe_move)
+            # Unsafe Capture Move with no retaliation
+            elif (unsafe_move, True) in selected_piece_moves:
+                captured_piece = get_captured_piece(board, selected_piece_position, unsafe_move)
+                # Exchange of pieces is favorable
+                if captured_piece is not None and selected_piece.value < captured_piece.value:
+                    favorable_capture_moves.add(unsafe_move)
+                # Exchange of pieces is neutral or unfavorable
+                else:
+                    unsafe_moves.add(unsafe_move)
+            # Unsafe Move
+            else:
+                unsafe_moves.add(unsafe_move)
 
 
 def calculate_positions():
@@ -106,6 +120,7 @@ def calculate_positions():
     checkmate_positions.clear()
     stalemate_positions.clear()
     do_foreach_multithreaded(add_position_warnings, [pos for pos in board.positions if board.get(pos) is not None])
+    do_foreach_multithreaded(add_interesting_moves, [pos for pos in board.positions if board.get(pos) is not None])
 
 
 def add_position_warnings(capturing_piece_pos: Position):
@@ -155,7 +170,8 @@ def add_interesting_moves(pos: Position):
     if piece is not None and not selected_piece_pos:
         # Show which pieces can do interesting moves when no piece is selected
         do_foreach_multithreaded(process_checkmate_and_stalemate_move, [move for move, capture_move in piece.get_moves(board, pos)])
-        do_foreach_multithreaded(process_attack_move, piece.get_safe_moves(board, pos))
+        #TODO: optimize this
+        #do_foreach_multithreaded(process_attack_move, piece.get_safe_moves(board, pos))
 
 
 def calculate_retaliation_with_capture(threatened_piece_pos: Position, current_board: Board, previously_captured_piece: Optional[Piece]) -> Tuple[int, int]:
@@ -291,6 +307,15 @@ def check_promotion(new_position):
             Pawn.promote(board, new_position, input("Promotion of a Pawn:\nEnter q for queen, r for rook, b for bishop, k for knight.\n"))
 
 
+# Helper callback to reset flags when future completes
+def make_callback(flag_setter):
+    def callback(_future):
+        flag_setter(False)
+        global needs_redraw
+        needs_redraw = True
+    return callback
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -354,12 +379,19 @@ if __name__ == '__main__':
     checkmate_moves = set()
     stalemate_moves = set()
 
+    needs_redraw = True
+    is_calc_moves_running = False
+    is_calc_positions_running = False
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         while running:
 
-            draw_board()
-            draw_pieces()
-            draw_positions_and_moves()
+            if needs_redraw or is_calc_moves_running or is_calc_positions_running:
+                draw_board()
+                draw_pieces()
+                draw_positions_and_moves()
+                pygame.display.flip()
+                needs_redraw = False
 
             for event in pygame.event.get():
 
@@ -373,6 +405,7 @@ if __name__ == '__main__':
                         board.redo()
                     elif event.key == K_LSHIFT:
                         rotated = not rotated
+                    needs_redraw = True
                 # Mouse events
                 else:
                     mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE, rotated)
@@ -384,18 +417,23 @@ if __name__ == '__main__':
                             board.do_move(origin=selected_piece_pos, destination=mouse_pos)
                             check_promotion(mouse_pos)
                         selected_piece_pos = None
+                    needs_redraw = True
 
                 # For key press event and mouse button events -> recalculate moves
                 if event.type == KEYDOWN or event.type == MOUSEBUTTONUP or event.type == MOUSEBUTTONDOWN:
-                    if future_calc_moves is not None:
-                        future_calc_moves.result()
-                    future_calc_moves = executor.submit(calculate_moves)
+                    # TODO:Make a queue
+                    if not is_calc_moves_running:
+                        is_calc_moves_running = True
+                        future_calc_moves = executor.submit(calculate_moves)
+                        future_calc_moves.add_done_callback(make_callback(lambda v: globals().update(is_calc_moves_running=v)))
 
                 # For key press event and mouse button release events with an actual move -> recalculate positions
                 if event.type == KEYDOWN or (event.type == MOUSEBUTTONUP and has_moved):
-                    if future_calc_positions is not None:
-                        future_calc_positions.result()
-                    future_calc_positions = executor.submit(calculate_positions)
+                    # TODO:Make a queue
+                    if not is_calc_positions_running:
+                        is_calc_positions_running = True
+                        future_calc_positions = executor.submit(calculate_positions)
+                        future_calc_positions.add_done_callback(make_callback(lambda v: globals().update(is_calc_positions_running=v)))
 
             pygame.display.flip()
 
