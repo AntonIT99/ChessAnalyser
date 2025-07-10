@@ -1,13 +1,13 @@
-import argparse
-import concurrent
-import os
-import queue
-import sys
-import threading
-from typing import Optional, Tuple
-
 import pygame
+import os
+import sys
+
+from argparse import ArgumentParser
+from concurrent.futures import ThreadPoolExecutor
+from queue import Queue
 from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN, K_LSHIFT, MOUSEBUTTONUP
+from threading import Thread, Lock
+from typing import Optional, Tuple
 
 from board import Board
 from color import Color
@@ -320,17 +320,38 @@ def make_callback(flag_setter):
 
 # Task runner worker
 def task_worker():
+    global needs_redraw, is_calc_moves_running, is_calc_positions_running
     while True:
-        _, task_fn = task_queue.get()
+        task_name, task_fn = task_queue.get()
         try:
+            with pending_tasks_lock:
+                pending_tasks.discard(task_name)
+            if task_name == "calculate_moves":
+                is_calc_moves_running = True
+            elif task_name == "calculate_positions":
+                is_calc_positions_running = True
             task_fn()
         finally:
+            if task_name == "calculate_moves":
+                is_calc_moves_running = False
+            elif task_name == "calculate_positions":
+                is_calc_positions_running = False
             task_queue.task_done()
+            needs_redraw = True
+
+
+# Adds a task if not already pending
+def enqueue_task(task_name, task_fn):
+    with pending_tasks_lock:
+        if task_name in pending_tasks:
+            return
+        pending_tasks.add(task_name)
+    task_queue.put((task_name, task_fn))
 
 
 if __name__ == '__main__':
 
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument('-res', '--resolution', type=int,
                         help='Set the resolution WIDTH/HEIGHT e.g. -res 1000')
     args = parser.parse_args()
@@ -372,6 +393,9 @@ if __name__ == '__main__':
     future_calc_positions = None
     future_calc_moves = None
     has_moved = False
+    needs_redraw = True
+    is_calc_moves_running = False
+    is_calc_positions_running = False
 
     threatened_positions = set()
     threatened_positions_with_favorable_relation_possibility = set()
@@ -391,14 +415,12 @@ if __name__ == '__main__':
     checkmate_moves = set()
     stalemate_moves = set()
 
-    needs_redraw = True
-    is_calc_moves_running = False
-    is_calc_positions_running = False
+    task_queue = Queue()
+    pending_tasks = set()
+    pending_tasks_lock = Lock()
+    Thread(target=task_worker, daemon=True).start()
 
-    task_queue = queue.Queue()
-    threading.Thread(target=task_worker, daemon=True).start()
-
-    with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         while running:
 
             if needs_redraw or is_calc_moves_running or is_calc_positions_running:
