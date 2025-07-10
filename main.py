@@ -410,10 +410,10 @@ if __name__ == '__main__':
     while running:
 
         if needs_redraw or is_calc_positions_running:
+            needs_redraw = False
             draw_board()
             draw_pieces()
             draw_positions()
-            needs_redraw = False
         if selected_piece_pos is not None:
             draw_moves()
         pygame.display.flip()
