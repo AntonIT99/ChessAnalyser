@@ -1,7 +1,9 @@
 import argparse
 import concurrent
 import os
+import queue
 import sys
+import threading
 from typing import Optional, Tuple
 
 import pygame
@@ -316,6 +318,16 @@ def make_callback(flag_setter):
     return callback
 
 
+# Task runner worker
+def task_worker():
+    while True:
+        _, task_fn = task_queue.get()
+        try:
+            task_fn()
+        finally:
+            task_queue.task_done()
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -383,6 +395,9 @@ if __name__ == '__main__':
     is_calc_moves_running = False
     is_calc_positions_running = False
 
+    task_queue = queue.Queue()
+    threading.Thread(target=task_worker, daemon=True).start()
+
     with concurrent.futures.ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
         while running:
 
@@ -421,21 +436,11 @@ if __name__ == '__main__':
 
                 # For key press event and mouse button events -> recalculate moves
                 if event.type == KEYDOWN or event.type == MOUSEBUTTONUP or event.type == MOUSEBUTTONDOWN:
-                    # TODO:Make a queue
-                    if not is_calc_moves_running:
-                        is_calc_moves_running = True
-                        future_calc_moves = executor.submit(calculate_moves)
-                        future_calc_moves.add_done_callback(make_callback(lambda v: globals().update(is_calc_moves_running=v)))
+                    task_queue.put(("calculate_moves", calculate_moves))
 
                 # For key press event and mouse button release events with an actual move -> recalculate positions
                 if event.type == KEYDOWN or (event.type == MOUSEBUTTONUP and has_moved):
-                    # TODO:Make a queue
-                    if not is_calc_positions_running:
-                        is_calc_positions_running = True
-                        future_calc_positions = executor.submit(calculate_positions)
-                        future_calc_positions.add_done_callback(make_callback(lambda v: globals().update(is_calc_positions_running=v)))
-
-            pygame.display.flip()
+                    task_queue.put(("calculate_positions", calculate_positions))
 
     # Exit
     pygame.quit()
