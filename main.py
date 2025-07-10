@@ -320,11 +320,9 @@ def enqueue_task(task_name, task_fn, executor):
         pending_tasks.add(task_name)
 
     def wrapped():
-        global needs_redraw, is_calc_moves_running, is_calc_positions_running
+        global needs_redraw, is_calc_positions_running
         try:
-            if task_name == "calculate_moves":
-                is_calc_moves_running = True
-            elif task_name == "calculate_positions":
+            if task_name == "calculate_positions":
                 is_calc_positions_running = True
             task_fn()
         except Exception:
@@ -332,9 +330,7 @@ def enqueue_task(task_name, task_fn, executor):
         finally:
             with pending_tasks_lock:
                 pending_tasks.discard(task_name)
-            if task_name == "calculate_moves":
-                is_calc_moves_running = False
-            elif task_name == "calculate_positions":
+            if task_name == "calculate_positions":
                 is_calc_positions_running = False
             needs_redraw = True
 
@@ -382,11 +378,8 @@ if __name__ == '__main__':
     selected_piece_pos = None
     rotated = False
     running = True
-    future_calc_positions = None
-    future_calc_moves = None
     has_moved = False
     needs_redraw = True
-    is_calc_moves_running = False
     is_calc_positions_running = False
 
     threatened_positions = set()
@@ -416,14 +409,14 @@ if __name__ == '__main__':
 
     while running:
 
-        if needs_redraw or is_calc_moves_running or is_calc_positions_running:
+        if needs_redraw or is_calc_positions_running:
             draw_board()
             draw_pieces()
             draw_positions()
-            if selected_piece_pos is not None:
-                draw_moves()
-            pygame.display.flip()
             needs_redraw = False
+        if selected_piece_pos is not None:
+            draw_moves()
+        pygame.display.flip()
 
         for event in pygame.event.get():
 
