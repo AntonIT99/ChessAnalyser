@@ -1,6 +1,7 @@
 import pygame
 import os
 import sys
+import traceback
 
 from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor
@@ -309,44 +310,33 @@ def check_promotion(new_position):
             Pawn.promote(board, new_position, input("Promotion of a Pawn:\nEnter q for queen, r for rook, b for bishop, k for knight.\n"))
 
 
-# Helper callback to reset flags when future completes
-def make_callback(flag_setter):
-    def callback(_future):
-        flag_setter(False)
-        global needs_redraw
-        needs_redraw = True
-    return callback
+# Adds a task if not already pending
+def enqueue_task(task_name, task_fn, executor):
+    with pending_tasks_lock:
+        if task_name in pending_tasks:
+            return
+        pending_tasks.add(task_name)
 
-
-# Task runner worker
-def task_worker():
-    global needs_redraw, is_calc_moves_running, is_calc_positions_running
-    while True:
-        task_name, task_fn = task_queue.get()
+    def wrapped():
+        global needs_redraw, is_calc_moves_running, is_calc_positions_running
         try:
-            with pending_tasks_lock:
-                pending_tasks.discard(task_name)
             if task_name == "calculate_moves":
                 is_calc_moves_running = True
             elif task_name == "calculate_positions":
                 is_calc_positions_running = True
             task_fn()
+        except Exception:
+            traceback.print_exc()
         finally:
+            with pending_tasks_lock:
+                pending_tasks.discard(task_name)
             if task_name == "calculate_moves":
                 is_calc_moves_running = False
             elif task_name == "calculate_positions":
                 is_calc_positions_running = False
-            task_queue.task_done()
             needs_redraw = True
 
-
-# Adds a task if not already pending
-def enqueue_task(task_name, task_fn):
-    with pending_tasks_lock:
-        if task_name in pending_tasks:
-            return
-        pending_tasks.add(task_name)
-    task_queue.put((task_name, task_fn))
+    executor.submit(wrapped)
 
 
 if __name__ == '__main__':
@@ -415,54 +405,55 @@ if __name__ == '__main__':
     checkmate_moves = set()
     stalemate_moves = set()
 
-    task_queue = Queue()
+    moves_queue = Queue()
+    positions_queue = Queue()
     pending_tasks = set()
     pending_tasks_lock = Lock()
-    Thread(target=task_worker, daemon=True).start()
+    moves_executor = ThreadPoolExecutor(max_workers=1)
+    positions_executor = ThreadPoolExecutor(max_workers=1)
 
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
-        while running:
+    while running:
 
-            if needs_redraw or is_calc_moves_running or is_calc_positions_running:
-                draw_board()
-                draw_pieces()
-                draw_positions_and_moves()
-                pygame.display.flip()
-                needs_redraw = False
+        if needs_redraw or is_calc_moves_running or is_calc_positions_running:
+            draw_board()
+            draw_pieces()
+            draw_positions_and_moves()
+            pygame.display.flip()
+            needs_redraw = False
 
-            for event in pygame.event.get():
+        for event in pygame.event.get():
 
-                if event.type == QUIT:
-                    running = False
-                # Key events
-                elif event.type == KEYDOWN:
-                    if event.key == K_BACKSPACE:
-                        board.undo()
-                    elif event.key == K_RETURN:
-                        board.redo()
-                    elif event.key == K_LSHIFT:
-                        rotated = not rotated
-                    needs_redraw = True
-                # Mouse events
-                else:
-                    mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE, rotated)
-                    if event.type == MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
-                        selected_piece_pos = Position.copy(mouse_pos)
-                    elif event.type == MOUSEBUTTONUP and selected_piece_pos is not None:
-                        has_moved = selected_piece_pos != mouse_pos
-                        if has_moved:
-                            board.do_move(origin=selected_piece_pos, destination=mouse_pos)
-                            check_promotion(mouse_pos)
-                        selected_piece_pos = None
-                    needs_redraw = True
+            if event.type == QUIT:
+                running = False
+            # Key events
+            elif event.type == KEYDOWN:
+                if event.key == K_BACKSPACE:
+                    board.undo()
+                elif event.key == K_RETURN:
+                    board.redo()
+                elif event.key == K_LSHIFT:
+                    rotated = not rotated
+                needs_redraw = True
+            # Mouse events
+            else:
+                mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE, rotated)
+                if event.type == MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
+                    selected_piece_pos = Position.copy(mouse_pos)
+                elif event.type == MOUSEBUTTONUP and selected_piece_pos is not None:
+                    has_moved = selected_piece_pos != mouse_pos
+                    if has_moved:
+                        board.do_move(origin=selected_piece_pos, destination=mouse_pos)
+                        check_promotion(mouse_pos)
+                    selected_piece_pos = None
+                needs_redraw = True
 
-                # For key press event and mouse button events -> recalculate moves
-                if event.type == KEYDOWN or event.type == MOUSEBUTTONUP or event.type == MOUSEBUTTONDOWN:
-                    task_queue.put(("calculate_moves", calculate_moves))
+            # For key press event and mouse button events -> recalculate moves
+            if event.type == KEYDOWN or event.type == MOUSEBUTTONUP or event.type == MOUSEBUTTONDOWN:
+                enqueue_task("calculate_moves", calculate_moves, moves_executor)
 
-                # For key press event and mouse button release events with an actual move -> recalculate positions
-                if event.type == KEYDOWN or (event.type == MOUSEBUTTONUP and has_moved):
-                    task_queue.put(("calculate_positions", calculate_positions))
+            # For key press event and mouse button release events with an actual move -> recalculate positions
+            if event.type == KEYDOWN or (event.type == MOUSEBUTTONUP and has_moved):
+                enqueue_task("calculate_positions", calculate_positions, positions_executor)
 
     # Exit
     pygame.quit()
