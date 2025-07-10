@@ -420,7 +420,8 @@ if __name__ == '__main__':
             draw_board()
             draw_pieces()
             draw_positions()
-            draw_moves()
+            if selected_piece_pos is not None:
+                draw_moves()
             pygame.display.flip()
             needs_redraw = False
 
@@ -430,15 +431,16 @@ if __name__ == '__main__':
                 running = False
             # Key events
             elif event.type == KEYDOWN:
+                needs_redraw = True
                 if event.key == K_BACKSPACE:
                     board.undo()
                 elif event.key == K_RETURN:
                     board.redo()
                 elif event.key == K_LSHIFT:
                     rotated = not rotated
-                needs_redraw = True
             # Mouse events
             else:
+                needs_redraw = True
                 mouse_pos = get_square_under_mouse(board.rows, board.columns, SQUARE_SIZE, rotated)
                 if event.type == MOUSEBUTTONDOWN and board.get(mouse_pos) is not None:
                     selected_piece_pos = Position.copy(mouse_pos)
@@ -448,7 +450,6 @@ if __name__ == '__main__':
                         board.do_move(origin=selected_piece_pos, destination=mouse_pos)
                         check_promotion(mouse_pos)
                     selected_piece_pos = None
-                needs_redraw = True
 
             # For key press event and mouse button events -> recalculate moves
             if event.type == KEYDOWN or event.type == MOUSEBUTTONUP or event.type == MOUSEBUTTONDOWN:

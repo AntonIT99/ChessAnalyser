@@ -57,7 +57,7 @@ def clamp(value, minimum, maximum):
 
 
 def do_foreach_multithreaded(function, for_each_list):
-    with ThreadPoolExecutor(max_workers=4*os.cpu_count()) as executor:
+    with ThreadPoolExecutor(max_workers=min(32, (os.cpu_count() or 1) * 4)) as executor:
         futures = [executor.submit(function, element) for element in for_each_list]
 
         for future in as_completed(futures):
