@@ -1,14 +1,14 @@
-import pygame
 import os
 import sys
 import traceback
-
 from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor
 from queue import Queue
-from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN, K_LSHIFT, MOUSEBUTTONUP
-from threading import Thread, Lock
+from threading import Lock
 from typing import Optional, Tuple
+
+import pygame
+from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN, K_LSHIFT, MOUSEBUTTONUP
 
 from board import Board
 from color import Color
@@ -234,7 +234,7 @@ def is_attack_move(current_board, pos, safe_or_favorable_move):
     return False
 
 
-def draw_positions_and_moves():
+def draw_positions():
     threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions_with_neutral_relation_possibility)
     threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions_with_unfavorable_relation_possibility)
     threatened_positions_with_neutral_relation_possibility.difference_update(threatened_positions_with_unfavorable_relation_possibility)
@@ -256,6 +256,8 @@ def draw_positions_and_moves():
     for pos in checkmate_positions:
         draw_thin_outline_on_square(pos.column, pos.row, Color.WHITE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
+
+def draw_moves():
     for move in safe_moves:
         draw_outline_on_square(move.column, move.row, Color.BLUE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for move in attack_moves:
@@ -417,7 +419,8 @@ if __name__ == '__main__':
         if needs_redraw or is_calc_moves_running or is_calc_positions_running:
             draw_board()
             draw_pieces()
-            draw_positions_and_moves()
+            draw_positions()
+            draw_moves()
             pygame.display.flip()
             needs_redraw = False
 
