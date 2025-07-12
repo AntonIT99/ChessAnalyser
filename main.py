@@ -309,7 +309,10 @@ def check_promotion(new_position):
     piece = board.get(new_position)
     if isinstance(piece, Pawn):
         if (piece.color == Color.BLACK and new_position.row == PROMOTION_ROW_BLACK) or (piece.color == Color.WHITE and new_position.row == PROMOTION_ROW_WHITE):
-            Pawn.promote(board, new_position, input("Promotion of a Pawn:\nEnter q for queen, r for rook, b for bishop, k for knight.\n"))
+            # Uncomment this to let the user choose the promotion
+            #new_type = input("Promotion of a Pawn:\nEnter q for queen, r for rook, b for bishop, k for knight.\n")
+            new_type = "q"
+            Pawn.promote(board, new_position, new_type)
 
 
 # Adds a task if not already pending
