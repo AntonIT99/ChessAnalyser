@@ -317,26 +317,24 @@ def check_promotion(new_position):
 
 # Adds a task if not already pending
 def enqueue_task(task_name, task_fn, executor):
+    def wrapped():
+        global needs_redraw, is_calc_positions_running
+        with pending_tasks_lock:
+            pending_tasks.discard(task_name)
+        if task_name == "calculate_positions":
+            is_calc_positions_running = True
+        try:
+            task_fn()
+        except Exception:
+            traceback.print_exc()
+        if task_name == "calculate_positions":
+            is_calc_positions_running = False
+        needs_redraw = True
+
     with pending_tasks_lock:
         if task_name in pending_tasks:
             return
         pending_tasks.add(task_name)
-
-    def wrapped():
-        global needs_redraw, is_calc_positions_running
-        try:
-            if task_name == "calculate_positions":
-                is_calc_positions_running = True
-            task_fn()
-        except Exception:
-            traceback.print_exc()
-        finally:
-            with pending_tasks_lock:
-                pending_tasks.discard(task_name)
-            if task_name == "calculate_positions":
-                is_calc_positions_running = False
-            needs_redraw = True
-
     executor.submit(wrapped)
 
 
