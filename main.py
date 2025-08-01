@@ -235,9 +235,14 @@ def is_attack_move(current_board, pos, safe_or_favorable_move):
 
 
 def draw_positions():
-    threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions_with_neutral_relation_possibility)
-    threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions_with_unfavorable_relation_possibility)
+    # threatened_positions > threatened_positions_with_unfavorable_relation_possibility > threatened_positions_with_neutral_relation_possibility > threatened_positions_with_favorable_relation_possibility
+    threatened_positions_with_unfavorable_relation_possibility.difference_update(threatened_positions)
+    threatened_positions_with_neutral_relation_possibility.difference_update(threatened_positions)
     threatened_positions_with_neutral_relation_possibility.difference_update(threatened_positions_with_unfavorable_relation_possibility)
+    threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions)
+    threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions_with_unfavorable_relation_possibility)
+    threatened_positions_with_favorable_relation_possibility.difference_update(threatened_positions_with_neutral_relation_possibility)
+
 
     for pos in threatened_positions_with_favorable_relation_possibility:
         draw_outline_on_square(pos.column, pos.row, Color.GREEN_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
@@ -247,12 +252,21 @@ def draw_positions():
         draw_outline_on_square(pos.column, pos.row, Color.ORANGE_YELLOW, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for pos in threatened_positions:
         draw_outline_on_square(pos.column, pos.row, Color.ORANGE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for pos in capture_move_positions:
-        draw_thin_outline_on_square(pos.column, pos.row, Color.DARK_GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
-    for pos in attack_move_positions:
-        draw_thin_outline_on_square(pos.column, pos.row, Color.DARK_CYAN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+
+    # checkmate_positions > capture_move_positions > attack_move_positions > stalemate_positions
+    capture_move_positions.difference_update(checkmate_positions)
+    attack_move_positions.difference_update(capture_move_positions)
+    attack_move_positions.difference_update(checkmate_positions)
+    stalemate_positions.difference_update(checkmate_positions)
+    stalemate_positions.difference_update(capture_move_positions)
+    stalemate_positions.difference_update(attack_move_positions)
+
     for pos in stalemate_positions:
         draw_thin_outline_on_square(pos.column, pos.row, Color.BLACK, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for pos in attack_move_positions:
+        draw_thin_outline_on_square(pos.column, pos.row, Color.DARK_CYAN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
+    for pos in capture_move_positions:
+        draw_thin_outline_on_square(pos.column, pos.row, Color.DARK_GREEN, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
     for pos in checkmate_positions:
         draw_thin_outline_on_square(pos.column, pos.row, Color.WHITE, screen, SQUARE_SIZE, COLUMNS, ROWS, rotated)
 
