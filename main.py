@@ -191,20 +191,34 @@ def calculate_retaliation_with_capture(threatened_piece_pos: Position, current_b
 def calculate_retaliation(threatened_piece_pos: Position, current_board: Board, lost_pieces_value_white=0, lost_pieces_value_black=0) -> Tuple[int, int]:
     threatened_piece = current_board.get(threatened_piece_pos)
     if threatened_piece is not None:
-        threat = threatened_piece.get_threat_with_smallest_value(current_board, threatened_piece_pos)
+        threat = Piece.get_threat_with_smallest_value(current_board, threatened_piece_pos)
         if threat is not None:
             threat_origin, threat_dest = threat
             # Simulate the retaliation capture move
             future_board = current_board.simulate_future_board(move_origin=threat_origin, move_destination=threat_dest)
-            attacker = future_board.get(threat_dest)
-            defender = attacker.get_threat_with_smallest_value(future_board, threat_dest)
-            # Worth it only if there is no defender or if the attacker value is at least less than the captured piece
-            if defender is None or attacker.value <= threatened_piece.value:
+            attacker_piece = future_board.get(threat_dest)
+            defender = Piece.get_threat_with_smallest_value(future_board, threat_dest)
+
+            # Worth it only if there is no defender
+            # or if the attacker has a lesser value than the captured piece
+            # or if the attacker can be taken by a defender with a lesser value
+            if defender is None:
                 lost_pieces_value_white += (threatened_piece.value if threatened_piece.color == Color.WHITE else 0)
                 lost_pieces_value_black += (threatened_piece.value if threatened_piece.color == Color.BLACK else 0)
-            # If there is a defender, continue the calculation with the attacker becoming the threatened piece
-            if defender is not None and attacker.value <= threatened_piece.value:
+            elif attacker_piece.value <= threatened_piece.value:
+                lost_pieces_value_white += (threatened_piece.value if threatened_piece.color == Color.WHITE else 0)
+                lost_pieces_value_black += (threatened_piece.value if threatened_piece.color == Color.BLACK else 0)
                 return calculate_retaliation(threat_dest, future_board, lost_pieces_value_white, lost_pieces_value_black)
+            else:
+                defender_origin, defender_dest = defender
+                defender_piece = future_board.get(defender_origin)
+                future_board2 = future_board.simulate_future_board(move_origin=defender_origin, move_destination=defender_dest)
+                defender_is_threatened = Piece.get_threat_with_smallest_value(future_board2, defender_dest) is not None
+                if defender_is_threatened and defender_piece.value >= attacker_piece.value:
+                    lost_pieces_value_white += (threatened_piece.value if threatened_piece.color == Color.WHITE else 0)
+                    lost_pieces_value_black += (threatened_piece.value if threatened_piece.color == Color.BLACK else 0)
+                    return calculate_retaliation(threat_dest, future_board, lost_pieces_value_white, lost_pieces_value_black)
+
     return lost_pieces_value_white, lost_pieces_value_black
 
 

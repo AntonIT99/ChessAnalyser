@@ -145,8 +145,10 @@ class Piece(ABC):
     Returns:
     - Tuple (threat_origin, threat destination)
     """
-    def get_threat_with_smallest_value(self, board, pos: Position) -> Optional[Tuple[Position, Position]]:
-        threats = self.get_threats(board, pos)
+
+    @classmethod
+    def get_threat_with_smallest_value(cls, board, pos: Position) -> Optional[Tuple[Position, Position]]:
+        threats = board.get(pos).get_threats(board, pos)
         if len(threats) > 0:
             return min(threats, key=lambda threat: board.get(threat[0]).value)
         else:
