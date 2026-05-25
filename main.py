@@ -1,8 +1,8 @@
-import os
 import sys
 import traceback
 from argparse import ArgumentParser
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from queue import Queue
 from threading import Lock
 from typing import Optional, Tuple
@@ -12,7 +12,8 @@ from pygame.locals import KEYDOWN, MOUSEBUTTONDOWN, QUIT, K_BACKSPACE, K_RETURN,
 
 from board import Board
 from color import Color
-from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, get_square_size, do_foreach_multithreaded, draw_thin_outline_on_square
+from helper import render_piece_on, render_piece_centered, draw_square, get_square_under_mouse, draw_outline_on_square, \
+    get_square_size, do_foreach_multithreaded, draw_thin_outline_on_square
 from piece import Rook, Knight, Bishop, Pawn, Queen, King, get_captured_piece, get_captured_piece_position, Piece
 from position import Position
 
@@ -366,6 +367,12 @@ def enqueue_task(task_name, task_fn, executor):
     executor.submit(wrapped)
 
 
+def resource_path(relative_path: str) -> str:
+    if hasattr(sys, "_MEIPASS"):
+        return str(Path(sys._MEIPASS) / relative_path)
+    return str(Path(__file__).resolve().parent / relative_path)
+
+
 if __name__ == '__main__':
 
     parser = ArgumentParser()
@@ -401,7 +408,7 @@ if __name__ == '__main__':
     board = Board(INIT_BOARD)
 
     # Font
-    font = pygame.font.Font(os.path.join("assets", "fonts", "seguisym.ttf"), int(0.75 * SQUARE_SIZE))
+    font = pygame.font.Font(resource_path("assets/fonts/seguisym.ttf"), int(0.75 * SQUARE_SIZE))
 
     # Main loop
     selected_piece_pos = None
