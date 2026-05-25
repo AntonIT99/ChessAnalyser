@@ -25,7 +25,7 @@ $UseOneDir = $false
 
 # Use $true for GUI apps without console window.
 # Keep $false while debugging runtime problems.
-$Windowed = $false
+$Windowed = $true
 
 Write-Host "=== Building $ProjectName ===" -ForegroundColor Cyan
 
