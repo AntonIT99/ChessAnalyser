@@ -89,4 +89,7 @@ class Board:
         return future_board
 
     def copy(self):
-        return Board(copy.deepcopy(self.__state))
+        board_copy = Board(copy.deepcopy(self.__state))
+        board_copy.undo_stack = copy.deepcopy(self.undo_stack)
+        board_copy.redo_stack = copy.deepcopy(self.redo_stack)
+        return board_copy

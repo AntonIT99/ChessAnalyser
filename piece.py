@@ -373,7 +373,7 @@ class Pawn(Piece):
                     opponent_pawn_previous_state = board.get_previous_state(Position(row=row + 2, column=col - 1))
                     if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
                         moves.append(Position(row=row + 1, column=col - 1))
-                elif col < board.last_column:
+                if col < board.last_column:
                     opponent_pawn = board.get(Position(row=row, column=col + 1))
                     opponent_pawn_previous_state = board.get_previous_state(Position(row=row + 2, column=col + 1))
                     if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
