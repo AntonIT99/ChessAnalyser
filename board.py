@@ -90,6 +90,6 @@ class Board:
 
     def copy(self):
         board_copy = Board(copy.deepcopy(self.__state))
-        board_copy.undo_stack = copy.deepcopy(self.undo_stack)
-        board_copy.redo_stack = copy.deepcopy(self.redo_stack)
+        if self.undo_stack:
+            board_copy.undo_stack = [copy.deepcopy(self.undo_stack[-1])]
         return board_copy
