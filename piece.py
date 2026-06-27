@@ -57,7 +57,16 @@ class Piece(ABC):
         Returns:
         - List of Position representing capture moves only.
         """
-        return [move for move, is_capture_move in self.get_moves(board, pos) if is_capture_move]
+        capture_candidates = [
+            (move, is_capture_move)
+            for move, is_capture_move in self.get_moves_ignore_illegal(board, pos)
+            if is_capture_move
+        ]
+        return [
+            move
+            for move, is_capture_move in self.only_legal_moves(board, pos, capture_candidates)
+            if is_capture_move
+        ]
 
     def get_unsafe_moves(self, board, pos: Position):
         """

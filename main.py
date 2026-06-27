@@ -52,6 +52,8 @@ def calculate_moves():
         selected_piece = board.get(selected_piece_position)
         selected_piece_moves = selected_piece.get_moves(board, selected_piece_position)
         selected_piece_unsafe_moves = selected_piece.get_unsafe_moves(board, selected_piece_position)
+        selected_piece_unsafe_move_positions = {unsafe_move for unsafe_move, opponent_origin, opponent_dest in selected_piece_unsafe_moves}
+        selected_piece_capture_moves = {move for move, is_capture_move in selected_piece_moves if is_capture_move}
 
         for move, is_capture_move in selected_piece_moves:
             checkmate, stalemate = check_checkmate_and_stalemate(selected_piece_position, move)
@@ -59,7 +61,7 @@ def calculate_moves():
                 checkmate_moves.add(move)
             elif stalemate:
                 stalemate_moves.add(move)
-            elif move not in [unsafe_move for unsafe_move, opponent_origin, opponent_dest in selected_piece_unsafe_moves]:
+            elif move not in selected_piece_unsafe_move_positions:
                 if is_capture_move:
                     favorable_capture_moves.add(move)
                 elif is_attack_move(board, selected_piece_position, move):
@@ -78,14 +80,14 @@ def calculate_moves():
                 if future_board.get(unsafe_move) is not None:
                     captured_piece = None
                     # Handle Capture Move in relation calculation
-                    if (unsafe_move, True) in selected_piece_moves:
+                    if unsafe_move in selected_piece_capture_moves:
                         captured_piece = get_captured_piece(board, selected_piece_position, unsafe_move)
                     white_threatened_value, black_threatened_value = calculate_retaliation_with_capture(unsafe_move, future_board, captured_piece)
                     color_defender = future_board.get(unsafe_move).color
                     # Unsafe Move with favorable retaliation
                     if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
                         # Capture Move
-                        if (unsafe_move, True) in selected_piece_moves:
+                        if unsafe_move in selected_piece_capture_moves:
                             favorable_capture_moves.add(unsafe_move)
                         # Attack Move
                         elif is_attack_move(board, selected_piece_position, unsafe_move):
@@ -101,7 +103,7 @@ def calculate_moves():
                 else:
                     unsafe_moves.add(unsafe_move)
             # Unsafe Capture Move with no retaliation
-            elif (unsafe_move, True) in selected_piece_moves:
+            elif unsafe_move in selected_piece_capture_moves:
                 captured_piece = get_captured_piece(board, selected_piece_position, unsafe_move)
                 # Exchange of pieces is favorable
                 if captured_piece is not None and selected_piece.value < captured_piece.value:
@@ -123,8 +125,9 @@ def calculate_positions():
     attack_move_positions.clear()
     checkmate_positions.clear()
     stalemate_positions.clear()
-    do_foreach_multithreaded(add_position_warnings, [pos for pos in board.positions if board.get(pos) is not None])
-    do_foreach_multithreaded(add_interesting_moves, [pos for pos in board.positions if board.get(pos) is not None])
+    occupied_positions = [pos for pos in board.positions if board.get(pos) is not None]
+    do_foreach_multithreaded(add_position_warnings, occupied_positions)
+    do_foreach_multithreaded(add_interesting_moves, occupied_positions)
 
 
 def add_position_warnings(capturing_piece_pos: Position):
@@ -132,9 +135,14 @@ def add_position_warnings(capturing_piece_pos: Position):
         threatened_piece_pos = get_captured_piece_position(board, capturing_piece_pos, capture_move)
         threatened_piece = board.get(threatened_piece_pos)
         if threatened_piece is not None:
-            if capture_move_has_retaliation_possibility(board, capturing_piece_pos, capture_move):
-                # Simulate the capture move
-                future_board = board.simulate_future_board(move_origin=capturing_piece_pos, move_destination=capture_move)
+            future_board = board.simulate_future_board(move_origin=capturing_piece_pos, move_destination=capture_move)
+            opponent_piece = future_board.get(capture_move)
+            has_retaliation = (
+                not isinstance(threatened_piece, King)
+                and opponent_piece is not None
+                and opponent_piece.is_currently_threatened(future_board, capture_move)
+            )
+            if has_retaliation:
                 white_threatened_value, black_threatened_value = calculate_retaliation_with_capture(capture_move, future_board, threatened_piece)
                 color_defender = threatened_piece.color
                 if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
@@ -407,12 +415,12 @@ if __name__ == '__main__':
     PROMOTION_ROW_BLACK = ROWS - 1
     INIT_BOARD = [
         [Rook(Color.BLACK), Knight(Color.BLACK), Bishop(Color.BLACK), Queen(Color.BLACK), King(Color.BLACK), Bishop(Color.BLACK), Knight(Color.BLACK), Rook(Color.BLACK)],
-        [Pawn(Color.BLACK)] * COLUMNS,
+        [Pawn(Color.BLACK) for _ in range(COLUMNS)],
         [None] * COLUMNS,
         [None] * COLUMNS,
         [None] * COLUMNS,
         [None] * COLUMNS,
-        [Pawn(Color.WHITE)] * COLUMNS,
+        [Pawn(Color.WHITE) for _ in range(COLUMNS)],
         [Rook(Color.WHITE), Knight(Color.WHITE), Bishop(Color.WHITE), Queen(Color.WHITE), King(Color.WHITE), Bishop(Color.WHITE), Knight(Color.WHITE), Rook(Color.WHITE)]
     ]
     board = Board(INIT_BOARD)

@@ -32,13 +32,16 @@ class Board:
 
     def set(self, pos: Position, value):
         # Save the current state to the undo stack before changing it
-        self.undo_stack.append(copy.deepcopy(self.__state))
+        self.undo_stack.append(self._copy_state(self.__state))
         # Update the state
         self.__state[pos.row][pos.column] = value
         # Clear the redo stack because we have a new state
         self.redo_stack.clear()
 
     def do_move(self, origin: Position, destination: Position):
+        self._apply_move(origin, destination, save_history=True)
+
+    def _apply_move(self, origin: Position, destination: Position, save_history: bool):
         is_en_passant, captured_position = en_passant(self, origin, destination)
         is_castling, other_origin = castling(self, origin, destination)
 
@@ -46,7 +49,8 @@ class Board:
         if origin != destination and self.get(origin) is not None:
 
             # Save the current state to the undo stack before changing it
-            self.undo_stack.append(copy.deepcopy(self.__state))
+            if save_history:
+                self.undo_stack.append(self._copy_state(self.__state))
 
             # Update the state by doing the move
             if is_castling:
@@ -63,14 +67,17 @@ class Board:
             piece.has_moved = True
 
             # Clear the redo stack because we have a new state
-            self.redo_stack.clear()
+            if save_history:
+                self.redo_stack.clear()
+            return True
+        return False
 
     def undo(self):
         if not self.undo_stack:
             # No actions to undo
             return
         # Move the current state to the redo stack
-        self.redo_stack.append(copy.deepcopy(self.__state))
+        self.redo_stack.append(self._copy_state(self.__state))
         # Pop the last state from the undo stack and set it as the current state
         self.__state = self.undo_stack.pop()
 
@@ -79,17 +86,25 @@ class Board:
             # No actions to undo
             return
         # Move the current state to the undo stack
-        self.undo_stack.append(copy.deepcopy(self.__state))
+        self.undo_stack.append(self._copy_state(self.__state))
         # Pop the last state from the redo stack and set it as the current state
         self.__state = self.redo_stack.pop()
 
     def simulate_future_board(self, move_origin: Position, move_destination: Position):
-        future_board = self.copy()
-        future_board.do_move(origin=move_origin, destination=move_destination)
+        future_board = Board(self._copy_state(self.__state))
+        if self.undo_stack:
+            future_board.undo_stack = [self._copy_state(self.undo_stack[-1])]
+        move_done = future_board._apply_move(origin=move_origin, destination=move_destination, save_history=False)
+        if move_done:
+            future_board.undo_stack = [self._copy_state(self.__state)]
         return future_board
 
     def copy(self):
-        board_copy = Board(copy.deepcopy(self.__state))
+        board_copy = Board(self._copy_state(self.__state))
         if self.undo_stack:
-            board_copy.undo_stack = [copy.deepcopy(self.undo_stack[-1])]
+            board_copy.undo_stack = [self._copy_state(self.undo_stack[-1])]
         return board_copy
+
+    @classmethod
+    def _copy_state(cls, state):
+        return [[copy.copy(piece) if piece is not None else None for piece in row] for row in state]

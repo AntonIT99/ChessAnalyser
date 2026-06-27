@@ -6,6 +6,9 @@ import pygame
 from board import Position
 
 
+MULTITHREAD_MIN_ITEMS = 64
+
+
 def get_square_size(width, columns):
     return width // columns
 
@@ -57,8 +60,17 @@ def clamp(value, minimum, maximum):
 
 
 def do_foreach_multithreaded(function, for_each_list):
-    with ThreadPoolExecutor(max_workers=min(32, (os.cpu_count() or 1) * 4)) as executor:
-        futures = [executor.submit(function, element) for element in for_each_list]
+    items = list(for_each_list)
+    if len(items) < MULTITHREAD_MIN_ITEMS:
+        for element in items:
+            try:
+                function(element)
+            except Exception as exc:
+                print(f'Function {function.__name__} generated an exception: {exc}')
+        return
+
+    with ThreadPoolExecutor(max_workers=min(len(items), os.cpu_count() or 1)) as executor:
+        futures = [executor.submit(function, element) for element in items]
 
         for future in as_completed(futures):
             try:
