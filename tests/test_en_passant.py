@@ -50,6 +50,28 @@ class EnPassantTest(unittest.TestCase):
             future_board.get(Position(4, 5)).get_moves(future_board, Position(4, 5)),
         )
 
+    def test_en_passant_requires_adjacent_square_to_have_been_empty_before_last_move(self):
+        state = [[None for _ in range(8)] for _ in range(8)]
+        state[0][0] = King(Color.BLACK)
+        state[7][7] = King(Color.WHITE)
+        state[4][5] = Pawn(Color.BLACK)
+        state[4][6] = Pawn(Color.WHITE)
+
+        previous_state = [[None for _ in range(8)] for _ in range(8)]
+        previous_state[0][0] = King(Color.BLACK)
+        previous_state[7][7] = King(Color.WHITE)
+        previous_state[4][5] = Pawn(Color.BLACK)
+        previous_state[4][6] = Pawn(Color.WHITE)
+        previous_state[6][6] = Pawn(Color.WHITE)
+
+        board = Board(state)
+        board.undo_stack = [previous_state]
+
+        self.assertNotIn(
+            (Position(5, 6), True),
+            board.get(Position(4, 5)).get_moves(board, Position(4, 5)),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -378,26 +378,30 @@ class Pawn(Piece):
 
             if self.color == Color.BLACK and row == board.last_row - 3:
                 if col > 0:
-                    opponent_pawn = board.get(Position(row=row, column=col - 1))
-                    opponent_pawn_previous_state = board.get_previous_state(Position(row=row + 2, column=col - 1))
-                    if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
+                    captured_pawn_position = Position(row=row, column=col - 1)
+                    captured_pawn_previous_position = Position(row=row + 2, column=col - 1)
+                    destination = Position(row=row + 1, column=col - 1)
+                    if is_last_move_double_step_pawn_move(board, self.color, captured_pawn_position, captured_pawn_previous_position, destination):
                         moves.append(Position(row=row + 1, column=col - 1))
                 if col < board.last_column:
-                    opponent_pawn = board.get(Position(row=row, column=col + 1))
-                    opponent_pawn_previous_state = board.get_previous_state(Position(row=row + 2, column=col + 1))
-                    if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
+                    captured_pawn_position = Position(row=row, column=col + 1)
+                    captured_pawn_previous_position = Position(row=row + 2, column=col + 1)
+                    destination = Position(row=row + 1, column=col + 1)
+                    if is_last_move_double_step_pawn_move(board, self.color, captured_pawn_position, captured_pawn_previous_position, destination):
                         moves.append(Position(row=row + 1, column=col + 1))
 
             elif self.color == Color.WHITE and row == 3:
                 if col > 0:
-                    opponent_pawn = board.get(Position(row=row, column=col - 1))
-                    opponent_pawn_previous_state = board.get_previous_state(Position(row=row - 2, column=col - 1))
-                    if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
+                    captured_pawn_position = Position(row=row, column=col - 1)
+                    captured_pawn_previous_position = Position(row=row - 2, column=col - 1)
+                    destination = Position(row=row - 1, column=col - 1)
+                    if is_last_move_double_step_pawn_move(board, self.color, captured_pawn_position, captured_pawn_previous_position, destination):
                         moves.append(Position(row=row - 1, column=col - 1))
                 if col < board.last_column:
-                    opponent_pawn = board.get(Position(row=row, column=col + 1))
-                    opponent_pawn_previous_state = board.get_previous_state(Position(row=row - 2, column=col + 1))
-                    if isinstance(opponent_pawn, Pawn) and opponent_pawn.color != self.color and isinstance(opponent_pawn_previous_state, Pawn) and opponent_pawn_previous_state.color != self.color:
+                    captured_pawn_position = Position(row=row, column=col + 1)
+                    captured_pawn_previous_position = Position(row=row - 2, column=col + 1)
+                    destination = Position(row=row - 1, column=col + 1)
+                    if is_last_move_double_step_pawn_move(board, self.color, captured_pawn_position, captured_pawn_previous_position, destination):
                         moves.append(Position(row=row - 1, column=col + 1))
 
         return moves
@@ -486,17 +490,32 @@ def en_passant(board, move_origin: Position, move_destination: Position) -> (boo
     if board.has_previous_state() and abs(move_destination.column - move_origin.column) == 1:
         own_pawn = board.get(move_origin)
         captured_pawn_position = Position(row=move_origin.row, column=move_destination.column)
-        captured_pawn = board.get(captured_pawn_position)
-        if isinstance(own_pawn, Pawn) and isinstance(captured_pawn, Pawn) and own_pawn.color != captured_pawn.color:
+        if isinstance(own_pawn, Pawn):
             if own_pawn.color == Color.BLACK and move_origin.row == board.last_row - 3 and move_destination.row == move_origin.row + 1:
-                captured_pawn_prev = board.get_previous_state(Position(row=board.last_row - 1, column=move_destination.column))
-                if isinstance(captured_pawn_prev, Pawn) and own_pawn.color != captured_pawn_prev.color:
+                captured_pawn_previous_position = Position(row=board.last_row - 1, column=move_destination.column)
+                if is_last_move_double_step_pawn_move(board, own_pawn.color, captured_pawn_position, captured_pawn_previous_position, move_destination):
                     return True, captured_pawn_position
             elif own_pawn.color == Color.WHITE and move_origin.row == 3 and move_destination.row == move_origin.row - 1:
-                captured_pawn_prev = board.get_previous_state(Position(row=1, column=move_destination.column))
-                if isinstance(captured_pawn_prev, Pawn) and own_pawn.color != captured_pawn_prev.color:
+                captured_pawn_previous_position = Position(row=1, column=move_destination.column)
+                if is_last_move_double_step_pawn_move(board, own_pawn.color, captured_pawn_position, captured_pawn_previous_position, move_destination):
                     return True, captured_pawn_position
     return False, None
+
+
+def is_last_move_double_step_pawn_move(board, own_color: Color, captured_pawn_position: Position, captured_pawn_previous_position: Position, move_destination: Position) -> bool:
+    captured_pawn = board.get(captured_pawn_position)
+    captured_pawn_prev = board.get_previous_state(captured_pawn_previous_position)
+    captured_square_prev = board.get_previous_state(captured_pawn_position)
+
+    return (
+        board.get(move_destination) is None
+        and board.get(captured_pawn_previous_position) is None
+        and captured_square_prev is None
+        and isinstance(captured_pawn, Pawn)
+        and isinstance(captured_pawn_prev, Pawn)
+        and captured_pawn.color != own_color
+        and captured_pawn_prev.color == captured_pawn.color
+    )
 
 
 def get_captured_piece_position(board, capture_move_origin: Position, capture_move_destination: Position):
