@@ -173,11 +173,12 @@ def add_interesting_moves(pos: Position):
             return
 
         checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
-        if checkmate:
-            checkmate_positions.add(pos)
-            stalemate_positions.discard(pos)
-        elif stalemate and pos not in checkmate_positions:
-            stalemate_positions.add(pos)
+        with marker_lock:
+            if checkmate:
+                checkmate_positions.add(pos)
+                stalemate_positions.discard(pos)
+            elif stalemate and pos not in checkmate_positions:
+                stalemate_positions.add(pos)
 
     def process_attack_move(move: Position):
         if pos in checkmate_positions or pos in stalemate_positions or pos in capture_move_positions or pos in attack_move_positions:
