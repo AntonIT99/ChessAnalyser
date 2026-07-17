@@ -169,9 +169,6 @@ def add_interesting_moves(pos: Position):
             if pos in checkmate_positions:
                 return
 
-        if pos in checkmate_positions or pos in stalemate_positions:
-            return
-
         checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
         with marker_lock:
             if checkmate:
