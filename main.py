@@ -162,14 +162,21 @@ def add_position_warnings(capturing_piece_pos: Position):
 
 
 def add_interesting_moves(pos: Position):
+    marker_lock = Lock()
+
     def process_checkmate_and_stalemate_move(move: Position):
+        with marker_lock:
+            if pos in checkmate_positions:
+                return
+
         if pos in checkmate_positions or pos in stalemate_positions:
             return
 
         checkmate, stalemate = check_checkmate_and_stalemate(pos, move)
         if checkmate:
             checkmate_positions.add(pos)
-        elif stalemate:
+            stalemate_positions.discard(pos)
+        elif stalemate and pos not in checkmate_positions:
             stalemate_positions.add(pos)
 
     def process_attack_move(move: Position):
