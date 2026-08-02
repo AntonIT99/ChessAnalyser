@@ -3,7 +3,7 @@ import unittest
 from board import Board
 from color import Color
 import main
-from piece import Bishop, King, Knight, Pawn, Rook
+from piece import Bishop, King, Knight, Pawn, Queen, Rook
 from position import Position
 
 
@@ -28,7 +28,29 @@ def build_problem_board():
     return Board(state)
 
 
+def build_well_defended_pawn_board():
+    state = [[None for _ in range(8)] for _ in range(8)]
+    state[0][4] = King(Color.BLACK)
+    state[2][2] = Queen(Color.BLACK)
+    state[4][2] = Pawn(Color.WHITE)
+    state[4][4] = Pawn(Color.WHITE)
+    state[4][3] = Pawn(Color.WHITE)
+    state[7][4] = King(Color.WHITE)
+    return Board(state)
+
+
 class RetaliationTest(unittest.TestCase):
+    def setUp(self):
+        main.safe_moves = set()
+        main.attack_moves = set()
+        main.favorable_capture_moves = set()
+        main.unsafe_moves = set()
+        main.unsafe_moves_with_neutral_relation_possibility = set()
+        main.unsafe_moves_with_favorable_relation_possibility = set()
+        main.unsafe_moves_with_unfavorable_relation_possibility = set()
+        main.checkmate_moves = set()
+        main.stalemate_moves = set()
+
     def test_king_recapture_keeps_problem_pawn_trade_neutral(self):
         board = build_problem_board()
         pawn_pos = Position(2, 5)
@@ -55,6 +77,17 @@ class RetaliationTest(unittest.TestCase):
         pawn_pos = Position(2, 5)
         self.assertIn(pawn_pos, main.threatened_positions_with_neutral_relation_possibility)
         self.assertNotIn(pawn_pos, main.threatened_positions_with_unfavorable_relation_possibility)
+
+    def test_well_defended_pawn_move_has_favorable_retaliation(self):
+        main.board = build_well_defended_pawn_board()
+        main.selected_piece_pos = Position(4, 3)
+        destination = Position(3, 3)
+
+        main.calculate_moves()
+
+        self.assertIn(destination, main.unsafe_moves_with_favorable_relation_possibility)
+        self.assertNotIn(destination, main.unsafe_moves_with_neutral_relation_possibility)
+        self.assertNotIn(destination, main.attack_moves)
 
 
 if __name__ == "__main__":

@@ -82,16 +82,16 @@ def calculate_moves():
                     # Handle Capture Move in relation calculation
                     if unsafe_move in selected_piece_capture_moves:
                         captured_piece = get_captured_piece(board, selected_piece_position, unsafe_move)
-                    white_threatened_value, black_threatened_value = calculate_retaliation_with_capture(unsafe_move, future_board, captured_piece)
+                    # The move is already known to be unsafe, so evaluate the
+                    # exchange on the condition that the opponent captures it.
+                    # Later recaptures remain optional.
+                    white_threatened_value, black_threatened_value = calculate_retaliation_with_capture(unsafe_move, future_board, captured_piece, must_capture=True)
                     color_defender = future_board.get(unsafe_move).color
                     # Unsafe Move with favorable retaliation
                     if (color_defender == Color.WHITE and white_threatened_value < black_threatened_value) or (color_defender == Color.BLACK and black_threatened_value < white_threatened_value):
                         # Capture Move
                         if unsafe_move in selected_piece_capture_moves:
                             favorable_capture_moves.add(unsafe_move)
-                        # Attack Move
-                        elif is_attack_move(board, selected_piece_position, unsafe_move):
-                            attack_moves.add(unsafe_move)
                         else:
                             unsafe_moves_with_favorable_relation_possibility.add(unsafe_move)
                     # Unsafe Move with unfavorable retaliation
@@ -191,7 +191,7 @@ def add_interesting_moves(pos: Position):
         #do_foreach_multithreaded(process_attack_move, piece.get_safe_moves(board, pos))
 
 
-def calculate_retaliation_with_capture(threatened_piece_pos: Position, current_board: Board, previously_captured_piece: Optional[Piece]) -> Tuple[int, int]:
+def calculate_retaliation_with_capture(threatened_piece_pos: Position, current_board: Board, previously_captured_piece: Optional[Piece], must_capture: bool = False) -> Tuple[int, int]:
     lost_pieces_value_white = 0
     lost_pieces_value_black = 0
     if previously_captured_piece is not None:
@@ -199,7 +199,7 @@ def calculate_retaliation_with_capture(threatened_piece_pos: Position, current_b
             lost_pieces_value_white = previously_captured_piece.value
         elif previously_captured_piece.color == Color.BLACK:
             lost_pieces_value_black = previously_captured_piece.value
-    return calculate_retaliation(threatened_piece_pos, current_board, lost_pieces_value_white, lost_pieces_value_black)
+    return calculate_retaliation(threatened_piece_pos, current_board, lost_pieces_value_white, lost_pieces_value_black, must_capture=must_capture)
 
 
 def material_balance_for(color: Color, lost_pieces_value_white: int, lost_pieces_value_black: int) -> int:
@@ -208,7 +208,7 @@ def material_balance_for(color: Color, lost_pieces_value_white: int, lost_pieces
     return lost_pieces_value_white - lost_pieces_value_black
 
 
-def calculate_retaliation(threatened_piece_pos: Position, current_board: Board, lost_pieces_value_white=0, lost_pieces_value_black=0) -> Tuple[int, int]:
+def calculate_retaliation(threatened_piece_pos: Position, current_board: Board, lost_pieces_value_white=0, lost_pieces_value_black=0, must_capture: bool = False) -> Tuple[int, int]:
     threatened_piece = current_board.get(threatened_piece_pos)
     if threatened_piece is None:
         return lost_pieces_value_white, lost_pieces_value_black
@@ -218,7 +218,7 @@ def calculate_retaliation(threatened_piece_pos: Position, current_board: Board, 
         return lost_pieces_value_white, lost_pieces_value_black
 
     color_to_move = current_board.get(threats[0][0]).color
-    possible_results = [(lost_pieces_value_white, lost_pieces_value_black)]
+    possible_results = [] if must_capture else [(lost_pieces_value_white, lost_pieces_value_black)]
 
     for threat_origin, threat_dest in threats:
         captured_piece = get_captured_piece(current_board, threat_origin, threat_dest)
